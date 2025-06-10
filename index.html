@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Chamados</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background-color:#f0f2f5;color:#333;margin:0;padding:20px}h1{text-align:center;color:#1a1a1a}
+        .dashboard{max-width:1800px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+        .filters{background-color:#fff;padding:15px 20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);display:flex;flex-wrap:wrap;gap:15px;align-items:center}
+        .filters label{font-weight:500;font-size:14px}
+        .filters select{padding:8px 12px;border:1px solid #ccc;border-radius:5px;background-color:#fff;font-size:14px}
+        .kpi-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+        .kpi-card{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);text-align:center}
+        .kpi-card h3{margin:0 0 10px;font-size:16px;font-weight:500;color:#555}
+        .kpi-card p{margin:0;font-size:36px;font-weight:700;color:#1a1a1a}
+        .charts-container{display:grid;grid-template-columns:1fr;gap:20px}
+        @media(min-width:900px){.charts-container{grid-template-columns:repeat(2,1fr)}}
+        .chart-card{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);height:450px}
+        .chart-card h4{margin-top:0;text-align:center;font-weight:500}
+    </style>
+</head>
+<body>
+    <h1>Dashboard de Chamados</h1>
+
+    <div class="dashboard">
+        <!-- SEÇÃO 1: FILTROS -->
+        <div class="filters">
+            <label for="filter-categoria">Categoria:</label>
+            <select id="filter-categoria" title="Filtrar por Categoria"><option value="">Tudo</option></select>
+            <label for="filter-departamento">Departamento:</label>
+            <select id="filter-departamento" title="Filtrar por Departamento"><option value="">Tudo</option></select>
+            <label for="filter-status">Status:</label>
+            <select id="filter-status" title="Filtrar por Status"><option value="">Tudo</option></select>
+            <label for="filter-ano">Ano:</label>
+            <select id="filter-ano" title="Filtrar por Ano"><option value="">Tudo</option></select>
+            <label for="filter-mes">Mês:</label>
+            <select id="filter-mes" title="Filtrar por Mês">
+                <option value="">Tudo</option>
+                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+        </div>
+
+        <!-- SEÇÃO 2: KPIs -->
+        <div class="kpi-container">
+            <div class="kpi-card"><h3>Total de Chamados</h3><p id="kpi-total-chamados">--</p></div>
+            <div class="kpi-card"><h3>A Fazer</h3><p id="kpi-a-fazer">--</p></div>
+            <div class="kpi-card"><h3>Concluídos</h3><p id="kpi-concluidos">--</p></div>
+        </div>
+
+        <!-- SEÇÃO 3: GRÁFICOS -->
+        <div class="charts-container">
+            <div class="chart-card"><h4>Tempo Médio de Conclusão</h4><canvas id="chart-tempo-medio"></canvas></div>
+            <div class="chart-card"><h4>Chamados por Status</h4><canvas id="chart-por-status"></canvas></div>
+            <div class="chart-card"><h4>Chamados por Categoria</h4><canvas id="chart-por-categoria"></canvas></div>
+            <div class="chart-card"><h4>Chamados por Solicitante</h4><canvas id="chart-por-solicitante"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3001';
+        let activeCharts = {};
+
+        function drawChart(canvasId, type, labels, data, chartLabel, colorPalette) {
+            if (activeCharts[canvasId]) activeCharts[canvasId].destroy();
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            activeCharts[canvasId] = new Chart(ctx, {
+                type: type,
+                data: { labels, datasets: [{ label: chartLabel, data, backgroundColor: colorPalette }] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: (type === 'bar') ? 'x' : undefined }
+            });
+        }
+        
+        function updateFilterOptions(opcoesFiltro) {
+            const createOptions = (selectId, values) => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Tudo</option>';
+                
+                values.sort().forEach(val => {
+                    const option = document.createElement('option');
+                    option.value = val;
+                    option.textContent = val;
+                    select.appendChild(option);
+                });
+                
+                if (select.querySelector(`option[value="${currentValue}"]`)) {
+                    select.value = currentValue;
+                }
+            };
+            createOptions('filter-categoria', opcoesFiltro.categoria);
+            createOptions('filter-departamento', opcoesFiltro.departamento);
+            createOptions('filter-status', opcoesFiltro.status);
+            createOptions('filter-ano', opcoesFiltro.ano);
+        }
+
+        async function refreshDashboard() {
+            const params = new URLSearchParams();
+            const addParam = (id, name) => {
+                const value = document.getElementById(id)?.value;
+                if (value) params.append(name, value);
+            };
+            addParam('filter-categoria', 'categoria');
+            addParam('filter-departamento', 'departamento');
+            addParam('filter-status', 'status');
+            addParam('filter-ano', 'ano');
+            addParam('filter-mes', 'mes');
+
+            const queryParams = params.toString() ? `?${params.toString()}` : '';
+            console.log(`Buscando dados com os filtros: ${queryParams}`);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
+                const data = await response.json();
+
+                document.getElementById('kpi-total-chamados').textContent = data.kpis.total;
+                document.getElementById('kpi-a-fazer').textContent = data.kpis.aFazer;
+                document.getElementById('kpi-concluidos').textContent = data.kpis.concluidos;
+                
+                updateFilterOptions(data.opcoesFiltro);
+                
+                const statusColors = ['#c6cca5', '#8ab8a8', '#6b9997', '#006738', '#BCD75E', '#b47941', '#cf391d'];
+                const categoriaColors = '#4a756f';
+                const solicitanteColors = '#9e906e';
+                const tempoMedioColors = '#006738';
+                
+                drawChart('chart-por-status', 'pie', Object.keys(data.graficos.porStatus), Object.values(data.graficos.porStatus), 'Chamados', statusColors);
+                drawChart('chart-por-categoria', 'bar', Object.keys(data.graficos.porCategoria), Object.values(data.graficos.porCategoria), 'Chamados', categoriaColors);
+                drawChart('chart-por-solicitante', 'bar', Object.keys(data.graficos.porSolicitante), Object.values(data.graficos.porSolicitante), 'Chamados', solicitanteColors);
+                drawChart('chart-tempo-medio', 'bar', Object.keys(data.graficos.tempoMedio), Object.values(data.graficos.tempoMedio), 'Dias', tempoMedioColors);
+
+            } catch (error) {
+                console.error("Erro ao carregar dados do dashboard:", error);
+            }
+        }
+
+        function setupDynamicFilters() {
+            const filterIds = ['filter-categoria', 'filter-departamento', 'filter-status', 'filter-ano', 'filter-mes'];
+            filterIds.forEach(id => {
+                const filterElement = document.getElementById(id);
+                if (filterElement) {
+                    filterElement.addEventListener('change', refreshDashboard);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupDynamicFilters();
+            refreshDashboard(); 
+        });
+    </script>
+
+</body>
+</html>
