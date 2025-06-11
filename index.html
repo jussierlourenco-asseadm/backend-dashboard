@@ -7,90 +7,121 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background-color:#f0f2f5;color:#333;margin:0;padding:20px}h1{text-align:center;color:#1a1a1a}
-        .dashboard{max-width:1800px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
-        .filters{background-color:#fff;padding:15px 20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);display:flex;flex-wrap:wrap;gap:15px;align-items:center}
-        .filters label{font-weight:500;font-size:14px}
-        .filters select{padding:8px 12px;border:1px solid #ccc;border-radius:5px;background-color:#fff;font-size:14px}
-        .kpi-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
-        .kpi-card{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);text-align:center}
-        .kpi-card h3{margin:0 0 10px;font-size:16px;font-weight:500;color:#555}
-        .kpi-card p{margin:0;font-size:36px;font-weight:700;color:#1a1a1a}
-        .charts-container{display:grid;grid-template-columns:1fr;gap:20px}
-        @media(min-width:900px){.charts-container{grid-template-columns:repeat(2,1fr)}}
-        .chart-card{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);height:450px}
+        
+        .dashboard{
+            max-width: 1800px; 
+            margin: 0 auto;    
+            display:flex;
+            flex-direction:column;
+            gap:20px
+        }
+
+        .filters{background-color:#fff;padding:15px 20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);display:flex;flex-wrap:wrap;gap:15px;align-items:center}.filters select,.filters button{padding:8px 12px;border:1px solid #ccc;border-radius:5px;background-color:#fff;font-size:14px}.filters button{background-color:#0d6efd;color:#fff;border-color:#0d6efd;cursor:pointer}.filters button:hover{background-color:#0b5ed7}.kpi-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}.kpi-card{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);text-align:center}.kpi-card h3{margin:0 0 10px;font-size:16px;font-weight:500;color:#555}.kpi-card p{margin:0;font-size:36px;font-weight:700;color:#1a1a1a}
+        
+        .charts-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 900px) {
+            .charts-container {
+                grid-template-columns: repeat(2, 1fr); 
+            }
+        }
+
+        .chart-card{
+            background-color:#fff;
+            padding:20px;
+            border-radius:8px;
+            box-shadow:0 2px 4px rgba(0,0,0,.05);
+            height: 450px; 
+        }
         .chart-card h4{margin-top:0;text-align:center;font-weight:500}
-        #loading-overlay {
-    position: fixed; /* Cobre a tela inteira */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(255, 255, 255, 0.8); /* Fundo branco semitransparente */
-    display: none; /* Começa escondido */
-    justify-content: center;
-    align-items: center;
-    z-index: 9999; /* Garante que fique por cima de tudo */
-    flex-direction: column;
-  }
 
-  .spinner {
-    border: 6px solid #f3f3f3; /* Cinza claro */
-    border-top: 6px solid #007bff; /* Azul do seu tema */
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-  }
+        /* ESTILO PARA O LOADING */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(240, 242, 245, 0.85); /* Combina com o fundo */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            font-size: 1.2em;
+            color: #333;
+            font-weight: 500;
+            backdrop-filter: blur(2px);
+        }
 
-  .loading-text {
-    color: #007bff;
-    margin-top: 15px;
-    font-size: 18px;
-    font-weight: bold;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
+        /* ESTILO PARA O RODAPÉ */
+        .dashboard-footer {
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 30px;
+            color: #888;
+            font-size: 14px;
+            border-top: 1px solid #ddd;
+        }
     </style>
 </head>
 <body>
+    <!-- MENSAGEM DE LOADING -->
+    <div id="loading-indicator" class="loading-overlay">
+        <div>Aguarde, carregando dados...</div>
+    </div>
+
     <h1>Dashboard de Chamados</h1>
 
     <div class="dashboard">
         <!-- SEÇÃO 1: FILTROS -->
         <div class="filters">
-            <label for="filter-categoria">Categoria:</label>
-            <select id="filter-categoria" title="Filtrar por Categoria"><option value="">Tudo</option></select>
-            <label for="filter-departamento">Departamento:</label>
-            <select id="filter-departamento" title="Filtrar por Departamento"><option value="">Tudo</option></select>
-            <label for="filter-status">Status:</label>
-            <select id="filter-status" title="Filtrar por Status"><option value="">Tudo</option></select>
-            <label for="filter-ano">Ano:</label>
-            <select id="filter-ano" title="Filtrar por Ano"><option value="">Tudo</option></select>
-            <label for="filter-mes">Mês:</label>
+            <select id="filter-categoria" title="Filtrar por Categoria"><option value="">Toda Categoria</option></select>
+            <select id="filter-departamento" title="Filtrar por Departamento"><option value="">Todo Departamento</option></select>
+            <select id="filter-status" title="Filtrar por Status"><option value="">Todo Status</option></select>
+            <select id="filter-ano" title="Filtrar por Ano"><option value="">Todo Ano</option></select>
             <select id="filter-mes" title="Filtrar por Mês">
-                <option value="">Tudo</option>
+                <option value="">Todo Mês</option>
                 <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
             </select>
+            <button id="apply-filters">Aplicar Filtros</button>
         </div>
 
         <!-- SEÇÃO 2: KPIs -->
         <div class="kpi-container">
-            <div class="kpi-card"><h3>Total de Chamados</h3><p id="kpi-total-chamados">--</p></div>
-            <div class="kpi-card"><h3>A Fazer</h3><p id="kpi-a-fazer">--</p></div>
-            <div class="kpi-card"><h3>Concluídos</h3><p id="kpi-concluidos">--</p></div>
+            <div class="kpi-card"><h3>TOTAL CHAMDOS</h3><p id="kpi-total-chamados">--</p></div>
+            <div class="kpi-card"><h3>A FAZER</h3><p id="kpi-a-fazer">--</p></div>
+            <div class="kpi-card"><h3>CONCLUÍDOS</h3><p id="kpi-concluidos">--</p></div>
         </div>
 
         <!-- SEÇÃO 3: GRÁFICOS -->
         <div class="charts-container">
-            <div class="chart-card"><h4>Tempo Médio de Conclusão</h4><canvas id="chart-tempo-medio"></canvas></div>
-            <div class="chart-card"><h4>Chamados por Status</h4><canvas id="chart-por-status"></canvas></div>
-            <div class="chart-card"><h4>Chamados por Categoria</h4><canvas id="chart-por-categoria"></canvas></div>
-            <div class="chart-card"><h4>Chamados por Solicitante</h4><canvas id="chart-por-solicitante"></canvas></div>
+            <div class="chart-card">
+                <h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4>
+                <canvas id="chart-tempo-medio"></canvas>
+            </div>
+            <div class="chart-card">
+                <h4>STATUS</h4>
+                <canvas id="chart-por-status"></canvas>
+            </div>
+            <div class="chart-card">
+                <h4>SERVIÇOS</h4>
+                <canvas id="chart-por-categoria"></canvas>
+            </div>
+            <div class="chart-card">
+                <h4>DEPARTAMENTO</h4>
+                <canvas id="chart-por-solicitante"></canvas>
+            </div>
         </div>
     </div>
+    
+    <!-- RODAPÉ ATUALIZADO -->
+    <footer class="dashboard-footer">
+        © Desenvolvido pela Assessoria de Administração do Centro de Biociências
+    </footer>
 
     <script>
         const API_BASE_URL = 'https://dashboard-chamados.onrender.com';
@@ -98,54 +129,52 @@
 
         function drawChart(canvasId, type, labels, data, chartLabel, colorPalette) {
             if (activeCharts[canvasId]) activeCharts[canvasId].destroy();
+            
             const ctx = document.getElementById(canvasId).getContext('2d');
             activeCharts[canvasId] = new Chart(ctx, {
                 type: type,
-                data: { labels, datasets: [{ label: chartLabel, data, backgroundColor: colorPalette }] },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: (type === 'bar') ? 'x' : undefined }
+                data: {
+                    labels: labels,
+                    datasets: [{ 
+                        label: chartLabel, 
+                        data: data,
+                        backgroundColor: colorPalette
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    indexAxis: (type === 'bar') ? 'x' : undefined
+                }
             });
         }
-        
-        function updateFilterOptions(opcoesFiltro) {
-            const createOptions = (selectId, values) => {
+
+        function updateFilterOptions(options, currentSelections) {
+            const createOptions = (selectId, values, defaultOptionText) => {
                 const select = document.getElementById(selectId);
-                if (!select) return;
-                
-                const currentValue = select.value;
-                select.innerHTML = '<option value="">Tudo</option>';
-                
+                const currentValue = currentSelections[selectId];
+                select.innerHTML = `<option value="">${defaultOptionText}</option>`;
                 values.sort().forEach(val => {
                     const option = document.createElement('option');
                     option.value = val;
                     option.textContent = val;
                     select.appendChild(option);
                 });
-                
-                if (select.querySelector(`option[value="${currentValue}"]`)) {
-                    select.value = currentValue;
-                }
+                select.value = currentValue;
             };
-            createOptions('filter-categoria', opcoesFiltro.categoria);
-            createOptions('filter-departamento', opcoesFiltro.departamento);
-            createOptions('filter-status', opcoesFiltro.status);
-            createOptions('filter-ano', opcoesFiltro.ano);
+
+            createOptions('filter-categoria', options.categoria, 'Toda Categoria');
+            createOptions('filter-departamento', options.departamento, 'Todo Departamento');
+            createOptions('filter-status', options.status, 'Todo Status');
+            createOptions('filter-ano', options.ano, 'Todo Ano');
         }
+        
+        async function refreshDashboard(queryParams = '') {
+            // MOSTRAR LOADING
+            const loadingIndicator = document.getElementById('loading-indicator');
+            loadingIndicator.style.display = 'flex';
 
-        async function refreshDashboard() {
-            const params = new URLSearchParams();
-            const addParam = (id, name) => {
-                const value = document.getElementById(id)?.value;
-                if (value) params.append(name, value);
-            };
-            addParam('filter-categoria', 'categoria');
-            addParam('filter-departamento', 'departamento');
-            addParam('filter-status', 'status');
-            addParam('filter-ano', 'ano');
-            addParam('filter-mes', 'mes');
-
-            const queryParams = params.toString() ? `?${params.toString()}` : '';
             console.log(`Buscando dados com os filtros: ${queryParams}`);
-            
             try {
                 const response = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
                 const data = await response.json();
@@ -154,36 +183,51 @@
                 document.getElementById('kpi-a-fazer').textContent = data.kpis.aFazer;
                 document.getElementById('kpi-concluidos').textContent = data.kpis.concluidos;
                 
-                updateFilterOptions(data.opcoesFiltro);
-                
-                const statusColors = ['#c6cca5', '#8ab8a8', '#6b9997', '#006738', '#BCD75E', '#b47941', '#cf391d'];
+                const currentSelections = {
+                    'filter-categoria': document.getElementById('filter-categoria').value,
+                    'filter-departamento': document.getElementById('filter-departamento').value,
+                    'filter-status': document.getElementById('filter-status').value,
+                    'filter-ano': document.getElementById('filter-ano').value,
+                };
+                updateFilterOptions(data.opcoesFiltro, currentSelections);
+
+                const statusColors = '#c6cca5';
                 const categoriaColors = '#4a756f';
                 const solicitanteColors = '#9e906e';
                 const tempoMedioColors = '#006738';
                 
-                drawChart('chart-por-status', 'pie', Object.keys(data.graficos.porStatus), Object.values(data.graficos.porStatus), 'Chamados', statusColors);
+                drawChart('chart-por-status', 'bar', Object.keys(data.graficos.porStatus), Object.values(data.graficos.porStatus), 'Chamados', statusColors);
                 drawChart('chart-por-categoria', 'bar', Object.keys(data.graficos.porCategoria), Object.values(data.graficos.porCategoria), 'Chamados', categoriaColors);
                 drawChart('chart-por-solicitante', 'bar', Object.keys(data.graficos.porSolicitante), Object.values(data.graficos.porSolicitante), 'Chamados', solicitanteColors);
                 drawChart('chart-tempo-medio', 'bar', Object.keys(data.graficos.tempoMedio), Object.values(data.graficos.tempoMedio), 'Dias', tempoMedioColors);
 
             } catch (error) {
                 console.error("Erro ao carregar dados do dashboard:", error);
+                loadingIndicator.innerHTML = '<div>Falha ao carregar dados. Tente novamente mais tarde.</div>';
+            } finally {
+                // ESCONDER LOADING
+                if(loadingIndicator.innerHTML.includes('Aguarde')) {
+                   loadingIndicator.style.display = 'none';
+                }
             }
         }
 
-        function setupDynamicFilters() {
-            const filterIds = ['filter-categoria', 'filter-departamento', 'filter-status', 'filter-ano', 'filter-mes'];
-            filterIds.forEach(id => {
-                const filterElement = document.getElementById(id);
-                if (filterElement) {
-                    filterElement.addEventListener('change', refreshDashboard);
-                }
-            });
-        }
+        document.getElementById('apply-filters').addEventListener('click', () => {
+            const params = new URLSearchParams();
+            const addParam = (id, name) => {
+                const value = document.getElementById(id).value;
+                if (value) params.append(name, value);
+            };
+            addParam('filter-categoria', 'categoria');
+            addParam('filter-departamento', 'departamento');
+            addParam('filter-status', 'status');
+            addParam('filter-ano', 'ano');
+            addParam('filter-mes', 'mes');
+            refreshDashboard(`?${params.toString()}`);
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
-            setupDynamicFilters();
-            refreshDashboard(); 
+            refreshDashboard();
         });
     </script>
 
