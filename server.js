@@ -50,7 +50,7 @@ async function getSheetData() {
             obj['Número do Chamado'] = row[1]; // Coluna B
             obj['De'] = row[4];                // Coluna E (Departamento)
             obj['Tópico de ajuda'] = row[8];   // Coluna I (Serviço)
-            obj['ANO'] = row[30];              // Coluna AD (Ano)
+            obj['ANO'] = row[29];              // Coluna AD (Ano)
             // obj['MES'] = row[XX];           // Se tiver uma coluna para MÊS, coloque o número dela aqui
 
             return obj;
