@@ -10,7 +10,7 @@
         
         .dashboard{
             max-width: 1800px; 
-            margin: 0 auto;    
+            margin: 0 auto;   
             display:flex;
             flex-direction:column;
             gap:20px
@@ -66,10 +66,72 @@
             font-size: 14px;
             border-top: 1px solid #ddd;
         }
+
+        /* ADICIONADO: ESTILOS PARA ABAS E TABELA */
+        .tabs {
+            background-color: #fff;
+            padding: 10px 20px 0 20px;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,.05);
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab-button {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background-color: transparent;
+            font-size: 16px;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab-button.active {
+            border-bottom: 3px solid #0d6efd;
+            font-weight: 600;
+            color: #0d6efd;
+        }
+        
+        .tab-content {
+            display: none;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.05);
+        }
+
+        #tabela-chamados-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        #chamados-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        #chamados-table th, #chamados-table td {
+            text-align: left;
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #chamados-table thead th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        #chamados-table tbody tr:hover {
+            background-color: #f1f1f1;
+        }
     </style>
 </head>
 <body>
-    <!-- MENSAGEM DE LOADING -->
     <div id="loading-indicator" class="loading-overlay">
         <div>Aguarde, carregando dados...</div>
     </div>
@@ -77,7 +139,6 @@
     <h1>Dashboard de Chamados</h1>
 
     <div class="dashboard">
-        <!-- SEÇÃO 1: FILTROS -->
         <div class="filters">
             <select id="filter-categoria" title="Filtrar por Categoria"><option value="">Toda Categoria</option></select>
             <select id="filter-departamento" title="Filtrar por Departamento"><option value="">Todo Departamento</option></select>
@@ -90,35 +151,57 @@
             <button id="apply-filters">Aplicar Filtros</button>
         </div>
 
-        <!-- SEÇÃO 2: KPIs -->
-        <div class="kpi-container">
-            <div class="kpi-card"><h3>TOTAL CHAMDOS</h3><p id="kpi-total-chamados">--</p></div>
-            <div class="kpi-card"><h3>A FAZER</h3><p id="kpi-a-fazer">--</p></div>
-            <div class="kpi-card"><h3>CONCLUÍDOS</h3><p id="kpi-concluidos">--</p></div>
+        <div class="tabs">
+            <button class="tab-button active" onclick="openTab(event, 'dashboard-content')">Dashboard</button>
+            <button class="tab-button" onclick="openTab(event, 'tabela-content')">Tabela de Chamados</button>
         </div>
 
-        <!-- SEÇÃO 3: GRÁFICOS -->
-        <div class="charts-container">
-            <div class="chart-card">
-                <h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4>
-                <canvas id="chart-tempo-medio"></canvas>
+        <div id="dashboard-content" class="tab-content" style="display: block;">
+            <div class="kpi-container">
+                <div class="kpi-card"><h3>TOTAL CHAMDOS</h3><p id="kpi-total-chamados">--</p></div>
+                <div class="kpi-card"><h3>A FAZER</h3><p id="kpi-a-fazer">--</p></div>
+                <div class="kpi-card"><h3>CONCLUÍDOS</h3><p id="kpi-concluidos">--</p></div>
             </div>
-            <div class="chart-card">
-                <h4>STATUS</h4>
-                <canvas id="chart-por-status"></canvas>
-            </div>
-            <div class="chart-card">
-                <h4>SERVIÇOS</h4>
-                <canvas id="chart-por-categoria"></canvas>
-            </div>
-            <div class="chart-card">
-                <h4>DEPARTAMENTO</h4>
-                <canvas id="chart-por-solicitante"></canvas>
+
+            <div class="charts-container" style="margin-top: 20px;">
+                <div class="chart-card">
+                    <h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4>
+                    <canvas id="chart-tempo-medio"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h4>STATUS</h4>
+                    <canvas id="chart-por-status"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h4>SERVIÇOS</h4>
+                    <canvas id="chart-por-categoria"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h4>DEPARTAMENTO</h4>
+                    <canvas id="chart-por-solicitante"></canvas>
+                </div>
             </div>
         </div>
+        
+        <div id="tabela-content" class="tab-content">
+            <h3>Lista Detalhada de Chamados</h3>
+            <div id="tabela-chamados-container">
+                <table id="chamados-table">
+                    <thead>
+                        <tr>
+                            <th>Número do Chamado</th>
+                            <th>Departamento</th>
+                            <th>Serviço</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
     
-    <!-- RODAPÉ ATUALIZADO -->
     <footer class="dashboard-footer">
         © Desenvolvido pela Assessoria de Administração do Centro de Biociências
     </footer>
@@ -126,6 +209,21 @@
     <script>
         const API_BASE_URL = 'https://dashboard-chamados.onrender.com';
         let activeCharts = {};
+
+        // ADICIONADO: Função para trocar de abas
+        function openTab(evt, tabName) {
+            let i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
 
         function drawChart(canvasId, type, labels, data, chartLabel, colorPalette) {
             if (activeCharts[canvasId]) activeCharts[canvasId].destroy();
@@ -169,19 +267,46 @@
             createOptions('filter-ano', options.ano, 'Todo Ano');
         }
         
+        // ADICIONADO: Função para popular a tabela de chamados
+        function popularTabelaChamados(chamados) {
+            const tabelaBody = document.querySelector('#chamados-table tbody');
+            tabelaBody.innerHTML = ''; // Limpa a tabela antes de popular
+
+            if (chamados.length === 0) {
+                tabelaBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhum chamado encontrado para os filtros selecionados.</td></tr>';
+                return;
+            }
+
+            chamados.forEach(chamado => {
+                const row = document.createElement('tr');
+                
+                // Use os nomes dos campos retornados pela sua API /api/chamados
+                const numeroChamado = chamado.Numero || '--';
+                const departamento = chamado.Departamento || '--';
+                const servico = chamado.Serviço || '--'; // Atenção ao acento em "Serviço"
+
+                row.innerHTML = `
+                    <td>${numeroChamado}</td>
+                    <td>${departamento}</td>
+                    <td>${servico}</td>
+                `;
+                tabelaBody.appendChild(row);
+            });
+        }
+        
         async function refreshDashboard(queryParams = '') {
-            // MOSTRAR LOADING
             const loadingIndicator = document.getElementById('loading-indicator');
             loadingIndicator.style.display = 'flex';
 
             console.log(`Buscando dados com os filtros: ${queryParams}`);
             try {
-                const response = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
-                const data = await response.json();
+                // Fetch para os dados agregados (KPIs e Gráficos)
+                const responseDashboard = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
+                const dataDashboard = await responseDashboard.json();
 
-                document.getElementById('kpi-total-chamados').textContent = data.kpis.total;
-                document.getElementById('kpi-a-fazer').textContent = data.kpis.aFazer;
-                document.getElementById('kpi-concluidos').textContent = data.kpis.concluidos;
+                document.getElementById('kpi-total-chamados').textContent = dataDashboard.kpis.total;
+                document.getElementById('kpi-a-fazer').textContent = dataDashboard.kpis.aFazer;
+                document.getElementById('kpi-concluidos').textContent = dataDashboard.kpis.concluidos;
                 
                 const currentSelections = {
                     'filter-categoria': document.getElementById('filter-categoria').value,
@@ -189,23 +314,29 @@
                     'filter-status': document.getElementById('filter-status').value,
                     'filter-ano': document.getElementById('filter-ano').value,
                 };
-                updateFilterOptions(data.opcoesFiltro, currentSelections);
+                updateFilterOptions(dataDashboard.opcoesFiltro, currentSelections);
 
                 const statusColors = '#c6cca5';
                 const categoriaColors = '#4a756f';
                 const solicitanteColors = '#9e906e';
                 const tempoMedioColors = '#006738';
                 
-                drawChart('chart-por-status', 'bar', Object.keys(data.graficos.porStatus), Object.values(data.graficos.porStatus), 'Chamados', statusColors);
-                drawChart('chart-por-categoria', 'bar', Object.keys(data.graficos.porCategoria), Object.values(data.graficos.porCategoria), 'Chamados', categoriaColors);
-                drawChart('chart-por-solicitante', 'bar', Object.keys(data.graficos.porSolicitante), Object.values(data.graficos.porSolicitante), 'Chamados', solicitanteColors);
-                drawChart('chart-tempo-medio', 'bar', Object.keys(data.graficos.tempoMedio), Object.values(data.graficos.tempoMedio), 'Dias', tempoMedioColors);
+                drawChart('chart-por-status', 'bar', Object.keys(dataDashboard.graficos.porStatus), Object.values(dataDashboard.graficos.porStatus), 'Chamados', statusColors);
+                drawChart('chart-por-categoria', 'bar', Object.keys(dataDashboard.graficos.porCategoria), Object.values(dataDashboard.graficos.porCategoria), 'Chamados', categoriaColors);
+                drawChart('chart-por-solicitante', 'bar', Object.keys(dataDashboard.graficos.porSolicitante), Object.values(dataDashboard.graficos.porSolicitante), 'Chamados', solicitanteColors);
+                drawChart('chart-tempo-medio', 'bar', Object.keys(dataDashboard.graficos.tempoMedio), Object.values(dataDashboard.graficos.tempoMedio), 'Dias', tempoMedioColors);
+                
+                // MODIFICADO: Fetch para os dados da tabela
+                // Este fetch é feito para o novo endpoint /api/chamados
+                const responseTabela = await fetch(`${API_BASE_URL}/api/chamados${queryParams}`);
+                const dataTabela = await responseTabela.json();
+                popularTabelaChamados(dataTabela);
+
 
             } catch (error) {
                 console.error("Erro ao carregar dados do dashboard:", error);
                 loadingIndicator.innerHTML = '<div>Falha ao carregar dados. Tente novamente mais tarde.</div>';
             } finally {
-                // ESCONDER LOADING
                 if(loadingIndicator.innerHTML.includes('Aguarde')) {
                    loadingIndicator.style.display = 'none';
                 }
