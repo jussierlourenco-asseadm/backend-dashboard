@@ -261,10 +261,13 @@
                 select.value = currentValue;
             };
 
-            createOptions('filter-categoria', options.categoria, 'Toda Categoria');
-            createOptions('filter-departamento', options.departamento, 'Todo Departamento');
-            createOptions('filter-status', options.status, 'Todo Status');
-            createOptions('filter-ano', options.ano, 'Todo Ano');
+            // ==========================================================
+            // CÓDIGO CORRIGIDO AQUI
+            // ==========================================================
+            createOptions('filter-categoria', options.categoria, 'Todos Serviços');
+            createOptions('filter-departamento', options.departamento, 'Todos Departamentos');
+            createOptions('filter-status', options.status, 'Todos Status');
+            createOptions('filter-ano', options.ano, 'Todos Anos');
         }
         
         // ADICIONADO: Função para popular a tabela de chamados
