@@ -67,7 +67,7 @@
             border-top: 1px solid #ddd;
         }
 
-        /* ADICIONADO: ESTILOS PARA ABAS E TABELA */
+        /* ESTILOS PARA ABAS E TABELA */
         .tabs {
             background-color: #fff;
             padding: 10px 20px 0 20px;
@@ -103,7 +103,7 @@
         }
 
         #tabela-chamados-container {
-            max-height: 600px;
+            min-height: 600px; /* Altura mínima para evitar que os botões "pulem" */
             overflow-y: auto;
         }
 
@@ -128,6 +128,32 @@
 
         #chamados-table tbody tr:hover {
             background-color: #f1f1f1;
+        }
+        
+        /* ADICIONADO: ESTILOS PARA PAGINAÇÃO */
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0 10px 0;
+            font-size: 14px;
+            color: #555;
+            flex-wrap: wrap;
+        }
+
+        .pagination-buttons button {
+            padding: 8px 16px;
+            margin-left: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #fff;
+        }
+
+        .pagination-buttons button:disabled {
+            color: #aaa;
+            cursor: not-allowed;
+            background-color: #f8f9fa;
         }
     </style>
 </head>
@@ -164,22 +190,10 @@
             </div>
 
             <div class="charts-container" style="margin-top: 20px;">
-                <div class="chart-card">
-                    <h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4>
-                    <canvas id="chart-tempo-medio"></canvas>
-                </div>
-                <div class="chart-card">
-                    <h4>STATUS</h4>
-                    <canvas id="chart-por-status"></canvas>
-                </div>
-                <div class="chart-card">
-                    <h4>SERVIÇOS</h4>
-                    <canvas id="chart-por-categoria"></canvas>
-                </div>
-                <div class="chart-card">
-                    <h4>DEPARTAMENTO</h4>
-                    <canvas id="chart-por-solicitante"></canvas>
-                </div>
+                <div class="chart-card"><h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4><canvas id="chart-tempo-medio"></canvas></div>
+                <div class="chart-card"><h4>STATUS</h4><canvas id="chart-por-status"></canvas></div>
+                <div class="chart-card"><h4>SERVIÇOS</h4><canvas id="chart-por-categoria"></canvas></div>
+                <div class="chart-card"><h4>DEPARTAMENTO</h4><canvas id="chart-por-solicitante"></canvas></div>
             </div>
         </div>
         
@@ -194,12 +208,18 @@
                             <th>Serviço</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
-        </div>
 
+            <div class="pagination-controls">
+                <div id="pagination-info"></div>
+                <div class="pagination-buttons">
+                    <button id="prev-page" disabled>Anterior</button>
+                    <button id="next-page" disabled>Próximo</button>
+                </div>
+            </div>
+        </div>
     </div>
     
     <footer class="dashboard-footer">
@@ -209,8 +229,12 @@
     <script>
         const API_BASE_URL = 'https://dashboard-chamados.onrender.com';
         let activeCharts = {};
+        
+        // ADICIONADO: Variáveis de estado para a paginação
+        let allFilteredChamados = [];
+        let currentPage = 1;
+        const itemsPerPage = 20;
 
-        // ADICIONADO: Função para trocar de abas
         function openTab(evt, tabName) {
             let i, tabcontent, tablinks;
             tabcontent = document.getElementsByClassName("tab-content");
@@ -227,23 +251,14 @@
 
         function drawChart(canvasId, type, labels, data, chartLabel, colorPalette) {
             if (activeCharts[canvasId]) activeCharts[canvasId].destroy();
-            
             const ctx = document.getElementById(canvasId).getContext('2d');
             activeCharts[canvasId] = new Chart(ctx, {
                 type: type,
                 data: {
                     labels: labels,
-                    datasets: [{ 
-                        label: chartLabel, 
-                        data: data,
-                        backgroundColor: colorPalette
-                    }]
+                    datasets: [{ label: chartLabel, data: data, backgroundColor: colorPalette }]
                 },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    indexAxis: (type === 'bar') ? 'x' : undefined
-                }
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: (type === 'bar') ? 'x' : undefined }
             });
         }
 
@@ -252,7 +267,7 @@
                 const select = document.getElementById(selectId);
                 const currentValue = currentSelections[selectId];
                 select.innerHTML = `<option value="">${defaultOptionText}</option>`;
-                values.sort().forEach(val => {
+                (values || []).sort().forEach(val => {
                     const option = document.createElement('option');
                     option.value = val;
                     option.textContent = val;
@@ -260,41 +275,62 @@
                 });
                 select.value = currentValue;
             };
-
-            // ==========================================================
-            // CÓDIGO CORRIGIDO AQUI
-            // ==========================================================
             createOptions('filter-categoria', options.categoria, 'Todos Serviços');
             createOptions('filter-departamento', options.departamento, 'Todos Departamentos');
             createOptions('filter-status', options.status, 'Todos Status');
             createOptions('filter-ano', options.ano, 'Todos Anos');
         }
         
-        // ADICIONADO: Função para popular a tabela de chamados
-        function popularTabelaChamados(chamados) {
+        // MODIFICADO: Função agora renderiza apenas a página atual
+        function popularTabelaChamados() {
             const tabelaBody = document.querySelector('#chamados-table tbody');
-            tabelaBody.innerHTML = ''; // Limpa a tabela antes de popular
+            tabelaBody.innerHTML = ''; 
 
-            if (chamados.length === 0) {
-                tabelaBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhum chamado encontrado para os filtros selecionados.</td></tr>';
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageItems = allFilteredChamados.slice(startIndex, endIndex);
+
+            if (pageItems.length === 0) {
+                tabelaBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhum chamado encontrado.</td></tr>';
+            } else {
+                pageItems.forEach(chamado => {
+                    const row = document.createElement('tr');
+                    const numeroChamado = chamado.Numero || '--';
+                    const departamento = chamado.Departamento || '--';
+                    const servico = chamado.Serviço || '--';
+                    row.innerHTML = `<td>${numeroChamado}</td><td>${departamento}</td><td>${servico}</td>`;
+                    tabelaBody.appendChild(row);
+                });
+            }
+            updatePaginationControls();
+        }
+
+        // ADICIONADO: Nova função para atualizar os controles da paginação
+        function updatePaginationControls() {
+            const totalItems = allFilteredChamados.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            const paginationInfo = document.getElementById('pagination-info');
+            const prevButton = document.getElementById('prev-page');
+            const nextButton = document.getElementById('next-page');
+
+            if (totalItems === 0) {
+                paginationInfo.textContent = '';
+                prevButton.style.display = 'none';
+                nextButton.style.display = 'none';
                 return;
             }
+            
+            prevButton.style.display = 'inline-block';
+            nextButton.style.display = 'inline-block';
 
-            chamados.forEach(chamado => {
-                const row = document.createElement('tr');
-                
-                // Use os nomes dos campos retornados pela sua API /api/chamados
-                const numeroChamado = chamado.Numero || '--';
-                const departamento = chamado.Departamento || '--';
-                const servico = chamado.Serviço || '--'; // Atenção ao acento em "Serviço"
-
-                row.innerHTML = `
-                    <td>${numeroChamado}</td>
-                    <td>${departamento}</td>
-                    <td>${servico}</td>
-                `;
-                tabelaBody.appendChild(row);
-            });
+            const startItem = (currentPage - 1) * itemsPerPage + 1;
+            const endItem = Math.min(startItem + itemsPerPage - 1, totalItems);
+            
+            paginationInfo.textContent = `Mostrando ${startItem} - ${endItem} de ${totalItems} chamados`;
+            
+            prevButton.disabled = currentPage === 1;
+            nextButton.disabled = currentPage === totalPages || totalPages === 0;
         }
         
         async function refreshDashboard(queryParams = '') {
@@ -319,22 +355,18 @@
                 };
                 updateFilterOptions(dataDashboard.opcoesFiltro, currentSelections);
 
-                const statusColors = '#c6cca5';
-                const categoriaColors = '#4a756f';
-                const solicitanteColors = '#9e906e';
-                const tempoMedioColors = '#006738';
+                const statusColors = '#c6cca5', categoriaColors = '#4a756f', solicitanteColors = '#9e906e', tempoMedioColors = '#006738';
                 
                 drawChart('chart-por-status', 'bar', Object.keys(dataDashboard.graficos.porStatus), Object.values(dataDashboard.graficos.porStatus), 'Chamados', statusColors);
                 drawChart('chart-por-categoria', 'bar', Object.keys(dataDashboard.graficos.porCategoria), Object.values(dataDashboard.graficos.porCategoria), 'Chamados', categoriaColors);
                 drawChart('chart-por-solicitante', 'bar', Object.keys(dataDashboard.graficos.porSolicitante), Object.values(dataDashboard.graficos.porSolicitante), 'Chamados', solicitanteColors);
                 drawChart('chart-tempo-medio', 'bar', Object.keys(dataDashboard.graficos.tempoMedio), Object.values(dataDashboard.graficos.tempoMedio), 'Dias', tempoMedioColors);
                 
-                // MODIFICADO: Fetch para os dados da tabela
-                // Este fetch é feito para o novo endpoint /api/chamados
+                // MODIFICADO: Fetch para os dados da tabela agora armazena os dados e renderiza a primeira página
                 const responseTabela = await fetch(`${API_BASE_URL}/api/chamados${queryParams}`);
-                const dataTabela = await responseTabela.json();
-                popularTabelaChamados(dataTabela);
-
+                allFilteredChamados = await responseTabela.json(); // Armazena todos os chamados filtrados
+                currentPage = 1; // Reseta para a primeira página
+                popularTabelaChamados(); // Renderiza a primeira página da tabela
 
             } catch (error) {
                 console.error("Erro ao carregar dados do dashboard:", error);
@@ -358,6 +390,22 @@
             addParam('filter-ano', 'ano');
             addParam('filter-mes', 'mes');
             refreshDashboard(`?${params.toString()}`);
+        });
+
+        // ADICIONADO: Event listeners para os botões da paginação
+        document.getElementById('next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(allFilteredChamados.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                popularTabelaChamados();
+            }
+        });
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                popularTabelaChamados();
+            }
         });
 
         document.addEventListener('DOMContentLoaded', () => {
