@@ -7,7 +7,7 @@ const { google } = require('googleapis');
 // =================================================================
 const app = express();
 app.use(cors());
-const PORT = process.env.PORT || 3001; // Usar a porta do ambiente ou 3001
+const PORT = process.env.PORT || 3001;
 const SPREADSHEET_ID = '11uYaOh6jJDsyNm1OPKnC_MpMcA9FL2aXWKPjeMlkhW4';
 
 const auth = new google.auth.GoogleAuth({
@@ -15,22 +15,7 @@ const auth = new google.auth.GoogleAuth({
   scopes: 'https://www.googleapis.com/auth/spreadsheets.readonly',
 });
 
-let cachedData = null; 
-
-// Função auxiliar para parsear a data
-function parseDate(dateString) {
-    if (!dateString) return null;
-    // Tenta detectar o formato DD/MM/YYYY
-    const parts = dateString.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (parts) {
-        // Formato DD/MM/YYYY, converte para YYYY-MM-DD para o objeto Date
-        return new Date(`${parts[3]}-${parts[2]}-${parts[1]}`);
-    }
-    // Tenta outros formatos que o Date.parse pode entender
-    const date = new Date(dateString);
-    return isNaN(date.getTime()) ? null : date;
-}
-
+let cachedData = null;
 
 async function getSheetData() {
     if (cachedData) {
@@ -57,15 +42,17 @@ async function getSheetData() {
                 obj[key] = row[i];
             });
 
-            // Adiciona colunas de Ano e Mês para facilitar a filtragem
-            const dataAbertura = parseDate(obj['Data de Abertura']);
-            if (dataAbertura) {
-                obj['ANO'] = dataAbertura.getFullYear().toString();
-                obj['MES'] = (dataAbertura.getMonth() + 1).toString();
-            } else {
-                obj['ANO'] = null;
-                obj['MES'] = null;
-            }
+            // =======================================================================
+            // AJUSTE CRÍTICO: Lendo colunas por POSIÇÃO e não por NOME DO CABEÇALHO
+            // Isso garante que os filtros funcionem independentemente do texto do cabeçalho.
+            // Em programação, a contagem de colunas começa em 0 (A=0, B=1, etc.)
+            // =======================================================================
+            obj['Número do Chamado'] = row[1]; // Coluna B
+            obj['De'] = row[4];                // Coluna E (Departamento)
+            obj['Tópico de ajuda'] = row[8];   // Coluna I (Serviço)
+            obj['ANO'] = row[29];              // Coluna AD (Ano)
+            // obj['MES'] = row[XX];           // Se tiver uma coluna para MÊS, coloque o número dela aqui
+
             return obj;
         });
 
@@ -88,6 +75,7 @@ function filterData(data, query) {
     let filteredData = [...data];
     const { categoria, departamento, status, ano, mes } = query;
     
+    // Os filtros agora usam os dados que garantimos que existem no objeto
     if (categoria) filteredData = filteredData.filter(r => r['Tópico de ajuda'] === categoria);
     if (departamento) filteredData = filteredData.filter(r => r['De'] === departamento);
     if (status) filteredData = filteredData.filter(r => r['Status Atual'] === status);
@@ -161,15 +149,13 @@ app.get('/api/dashboard-data', async (req, res) => {
 
 
 // =================================================================
-// NOVA ROTA PARA DADOS DETALHADOS (TABELA)
+// ROTA PARA DADOS DETALHADOS (TABELA)
 // =================================================================
 app.get('/api/chamados', async (req, res) => {
     let allData = await getSheetData();
     let filteredData = filterData(allData, req.query);
 
-    // Mapeia os dados para o formato esperado pelo frontend
     const tableData = filteredData.map(row => ({
-        // ATENÇÃO: Verifique se estes nomes de coluna correspondem aos da sua planilha
         Numero: row['Número do Chamado'],
         Departamento: row['De'],
         Serviço: row['Tópico de ajuda'] 
