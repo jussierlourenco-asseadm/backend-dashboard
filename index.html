@@ -96,10 +96,12 @@
         
         .tab-content {
             display: none;
+            /* Estilos de card aplicados diretamente aqui para evitar um wrapper extra */
             background-color: #fff;
             padding: 20px;
             border-radius: 0 0 8px 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,.05);
+            margin-top: -20px; /* Alinha com os filtros */
         }
 
         #tabela-chamados-container {
@@ -130,7 +132,7 @@
             background-color: #f1f1f1;
         }
         
-        /* ADICIONADO: ESTILOS PARA PAGINAÇÃO */
+        /* ESTILOS PARA PAGINAÇÃO */
         .pagination-controls {
             display: flex;
             justify-content: space-between;
@@ -178,22 +180,23 @@
         </div>
 
         <div class="tabs">
-            <button class="tab-button active" onclick="openTab(event, 'dashboard-content')">Dashboard</button>
+            <button class="tab-button active" onclick="openTab(event, 'visao-geral-content')">Visão Geral</button>
             <button class="tab-button" onclick="openTab(event, 'tabela-content')">Tabela de Chamados</button>
+            <button class="tab-button" onclick="openTab(event, 'custos-content')">Custos</button>
         </div>
 
-        <div id="dashboard-content" class="tab-content" style="display: block;">
+        <div id="visao-geral-content" class="tab-content" style="display: block;">
             <div class="kpi-container">
-                <div class="kpi-card"><h3>TOTAL CHAMDOS</h3><p id="kpi-total-chamados">--</p></div>
+                <div class="kpi-card"><h3>TOTAL CHAMADOS</h3><p id="kpi-total-chamados">--</p></div>
                 <div class="kpi-card"><h3>A FAZER</h3><p id="kpi-a-fazer">--</p></div>
                 <div class="kpi-card"><h3>CONCLUÍDOS</h3><p id="kpi-concluidos">--</p></div>
             </div>
 
             <div class="charts-container" style="margin-top: 20px;">
-                <div class="chart-card"><h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4><canvas id="chart-tempo-medio"></canvas></div>
-                <div class="chart-card"><h4>STATUS</h4><canvas id="chart-por-status"></canvas></div>
-                <div class="chart-card"><h4>SERVIÇOS</h4><canvas id="chart-por-categoria"></canvas></div>
-                <div class="chart-card"><h4>DEPARTAMENTO</h4><canvas id="chart-por-solicitante"></canvas></div>
+                <div class="chart-card"><h4>TEMPO MÉDIO DE CONCLUSÃO (DIAS)</h4><canvas id="chart-tempo-medio"></canvas></div>
+                <div class="chart-card"><h4>CHAMADOS POR STATUS</h4><canvas id="chart-por-status"></canvas></div>
+                <div class="chart-card"><h4>CHAMADOS POR SERVIÇO</h4><canvas id="chart-por-categoria"></canvas></div>
+                <div class="chart-card"><h4>CHAMADOS POR DEPARTAMENTO</h4><canvas id="chart-por-solicitante"></canvas></div>
             </div>
         </div>
         
@@ -220,6 +223,13 @@
                 </div>
             </div>
         </div>
+
+        <div id="custos-content" class="tab-content">
+             <div class="charts-container">
+                 <div class="chart-card"><h4>CUSTOS POR DEPARTAMENTO (R$)</h4><canvas id="chart-custos-departamento"></canvas></div>
+                 <div class="chart-card"><h4>CUSTOS POR SERVIÇO (R$)</h4><canvas id="chart-custos-servico"></canvas></div>
+            </div>
+        </div>
     </div>
     
     <footer class="dashboard-footer">
@@ -227,10 +237,9 @@
     </footer>
 
     <script>
-        const API_BASE_URL = 'https://dashboard-chamados.onrender.com';
+        const API_BASE_URL = 'ENDEREÇO_DA_SUA_API_DO_APPS_SCRIPT'; // <-- IMPORTANTE: Coloque aqui o URL da sua API
         let activeCharts = {};
         
-        // ADICIONADO: Variáveis de estado para a paginação
         let allFilteredChamados = [];
         let currentPage = 1;
         const itemsPerPage = 20;
@@ -258,7 +267,16 @@
                     labels: labels,
                     datasets: [{ label: chartLabel, data: data, backgroundColor: colorPalette }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: (type === 'bar') ? 'x' : undefined }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    indexAxis: (type === 'bar' && labels.length > 8) ? 'y' : 'x', // Deita o gráfico se tiver muitos itens
+                    plugins: {
+                        legend: {
+                           display: false // Esconde a legenda para gráficos de barra únicos
+                        }
+                    }
+                }
             });
         }
 
@@ -281,7 +299,6 @@
             createOptions('filter-ano', options.ano, 'Todos Anos');
         }
         
-        // MODIFICADO: Função agora renderiza apenas a página atual
         function popularTabelaChamados() {
             const tabelaBody = document.querySelector('#chamados-table tbody');
             tabelaBody.innerHTML = ''; 
@@ -305,7 +322,6 @@
             updatePaginationControls();
         }
 
-        // ADICIONADO: Nova função para atualizar os controles da paginação
         function updatePaginationControls() {
             const totalItems = allFilteredChamados.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -337,10 +353,9 @@
             const loadingIndicator = document.getElementById('loading-indicator');
             loadingIndicator.style.display = 'flex';
 
-            console.log(`Buscando dados com os filtros: ${queryParams}`);
             try {
                 // Fetch para os dados agregados (KPIs e Gráficos)
-                const responseDashboard = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
+                const responseDashboard = await fetch(`${API_BASE_URL}?path=api/dashboard-data${queryParams ? '&' + queryParams : ''}`);
                 const dataDashboard = await responseDashboard.json();
 
                 document.getElementById('kpi-total-chamados').textContent = dataDashboard.kpis.total;
@@ -355,24 +370,35 @@
                 };
                 updateFilterOptions(dataDashboard.opcoesFiltro, currentSelections);
 
-                const statusColors = '#c6cca5', categoriaColors = '#4a756f', solicitanteColors = '#9e906e', tempoMedioColors = '#006738';
+                // Paleta de cores para os gráficos
+                const statusColors = ['#f94144', '#f8961e', '#f9c74f', '#90be6d', '#43aa8b', '#577590'];
+                const categoriaColors = ['#003f5c', '#374c80', '#7a5195', '#bc5090', '#ef5675', '#ff764a', '#ffa600'];
+                const solicitanteColors = ['#5f4b8b', '#e69a8d', '#a5678e', '#d98a26', '#4a756f'];
+                const tempoMedioColors = ['#006738'];
+                const custosColors = ['#d98a26', '#a5678e', '#003f5c', '#bc5090', '#ff764a'];
                 
+                // Gráficos da aba 'Visão Geral'
                 drawChart('chart-por-status', 'bar', Object.keys(dataDashboard.graficos.porStatus), Object.values(dataDashboard.graficos.porStatus), 'Chamados', statusColors);
                 drawChart('chart-por-categoria', 'bar', Object.keys(dataDashboard.graficos.porCategoria), Object.values(dataDashboard.graficos.porCategoria), 'Chamados', categoriaColors);
                 drawChart('chart-por-solicitante', 'bar', Object.keys(dataDashboard.graficos.porSolicitante), Object.values(dataDashboard.graficos.porSolicitante), 'Chamados', solicitanteColors);
                 drawChart('chart-tempo-medio', 'bar', Object.keys(dataDashboard.graficos.tempoMedio), Object.values(dataDashboard.graficos.tempoMedio), 'Dias', tempoMedioColors);
                 
-                // MODIFICADO: Fetch para os dados da tabela agora armazena os dados e renderiza a primeira página
-                const responseTabela = await fetch(`${API_BASE_URL}/api/chamados${queryParams}`);
-                allFilteredChamados = await responseTabela.json(); // Armazena todos os chamados filtrados
-                currentPage = 1; // Reseta para a primeira página
-                popularTabelaChamados(); // Renderiza a primeira página da tabela
+                // NOVO: Gráficos da aba 'Custos'
+                drawChart('chart-custos-departamento', 'bar', Object.keys(dataDashboard.graficos.custosPorDepartamento), Object.values(dataDashboard.graficos.custosPorDepartamento), 'Custo (R$)', custosColors);
+                drawChart('chart-custos-servico', 'bar', Object.keys(dataDashboard.graficos.custosPorServico), Object.values(dataDashboard.graficos.custosPorServico), 'Custo (R$)', categoriaColors.slice().reverse());
+
+
+                // Fetch para os dados da tabela
+                const responseTabela = await fetch(`${API_BASE_URL}?path=api/chamados${queryParams ? '&' + queryParams : ''}`);
+                allFilteredChamados = await responseTabela.json();
+                currentPage = 1; 
+                popularTabelaChamados();
 
             } catch (error) {
                 console.error("Erro ao carregar dados do dashboard:", error);
-                loadingIndicator.innerHTML = '<div>Falha ao carregar dados. Tente novamente mais tarde.</div>';
+                loadingIndicator.innerHTML = '<div>Falha ao carregar dados. Verifique a URL da API e tente novamente.</div>';
             } finally {
-                if(loadingIndicator.innerHTML.includes('Aguarde')) {
+                 if(loadingIndicator.innerHTML.includes('Aguarde')) {
                    loadingIndicator.style.display = 'none';
                 }
             }
@@ -389,10 +415,9 @@
             addParam('filter-status', 'status');
             addParam('filter-ano', 'ano');
             addParam('filter-mes', 'mes');
-            refreshDashboard(`?${params.toString()}`);
+            refreshDashboard(params.toString());
         });
 
-        // ADICIONADO: Event listeners para os botões da paginação
         document.getElementById('next-page').addEventListener('click', () => {
             const totalPages = Math.ceil(allFilteredChamados.length / itemsPerPage);
             if (currentPage < totalPages) {
