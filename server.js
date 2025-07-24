@@ -29,8 +29,6 @@ async function getSheetData() {
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: 'BD_CHAM!A:AF',
-            // ALTERAÇÃO 1: Adicionado para obter o valor numérico bruto das células,
-            // ignorando formatação de moeda e resultados de fórmula.
             valueRenderOption: 'UNFORMATTED_VALUE'
         });
         
@@ -49,8 +47,20 @@ async function getSheetData() {
             obj['Número do Chamado'] = row[1]; // Coluna B
             obj['De'] = row[4];               // Coluna E (Departamento)
             obj['Tópico de ajuda'] = row[8];    // Coluna I (Serviço)
-            obj['ANO'] = row[29];             // Coluna AD (Ano)
             obj['Custo'] = row[31];           // Coluna AF (índice 31)
+
+            // CORREÇÃO: Derivar ano e mês da data de criação para um filtro confiável.
+            // Isso ignora a coluna 'ANO' e usa a data real do chamado.
+            // Assumindo que o nome da coluna de data é 'Data de criação'.
+            const creationDateSerial = obj['Data de criação'];
+            if (typeof creationDateSerial === 'number' && creationDateSerial > 0) {
+                // Converte o número de série de data do Google Sheets para um objeto Date do JavaScript.
+                const creationDate = new Date(1899, 11, 30 + creationDateSerial);
+                if (!isNaN(creationDate.getTime())) {
+                    obj.creationYear = creationDate.getFullYear();
+                    obj.creationMonth = creationDate.getMonth() + 1; // getMonth() é 0-indexed (Jan=0), então somamos 1.
+                }
+            }
 
             return obj;
         });
@@ -69,7 +79,7 @@ async function getSheetData() {
 }
 
 
-// Função auxiliar para filtrar dados (permanece inalterada)
+// Função auxiliar para filtrar dados
 function filterData(data, query) {
     let filteredData = [...data];
     const { categoria, departamento, status, ano, mes } = query;
@@ -77,8 +87,16 @@ function filterData(data, query) {
     if (categoria) filteredData = filteredData.filter(r => r['Tópico de ajuda'] === categoria);
     if (departamento) filteredData = filteredData.filter(r => r['De'] === departamento);
     if (status) filteredData = filteredData.filter(r => r['Status Atual'] === status);
-    if (ano) filteredData = filteredData.filter(r => r['ANO'] == ano);
-    if (mes) filteredData = filteredData.filter(r => r['MES'] == mes);
+
+    // CORREÇÃO: Lógica de filtro para ano e mês usando os novos campos derivados.
+    if (ano) {
+        const yearNum = parseInt(ano, 10);
+        filteredData = filteredData.filter(r => r.creationYear === yearNum);
+    }
+    if (mes) {
+        const monthNum = parseInt(mes, 10);
+        filteredData = filteredData.filter(r => r.creationMonth === monthNum);
+    }
 
     return filteredData;
 }
@@ -112,7 +130,6 @@ app.get('/api/dashboard-data', async (req, res) => {
     filteredData.forEach(row => {
         const cat = row['Tópico de ajuda'];
         const nomeDaColunaDeTempo = 'Tempo de Conclusão'; 
-        // ALTERAÇÃO 2: Simplificada a conversão, pois o valor já vem como número.
         const tempo = parseFloat(row[nomeDaColunaDeTempo]) || 0; 
         if (cat && tempo > 0) {
             if (!categoryData[cat]) categoryData[cat] = { sum: 0, count: 0 };
@@ -133,8 +150,6 @@ app.get('/api/dashboard-data', async (req, res) => {
     filteredData.forEach(row => {
         const departamento = row['De'];
         const servico = row['Tópico de ajuda'];
-        
-        // ALTERAÇÃO 3: Simplificada a conversão de custo, pois o valor já vem como número.
         const custo = parseFloat(row['Custo']) || 0;
 
         if (custo > 0) {
@@ -155,14 +170,15 @@ app.get('/api/dashboard-data', async (req, res) => {
         despesasPorServico[key] = parseFloat(despesasPorServico[key].toFixed(2));
     }
     
-    // --- Opções de Filtro Dinâmicas (inalterado) ---
+    // --- Opções de Filtro Dinâmicas ---
     const getOptionsFrom = (dataSet, key) => [...new Set(dataSet.map(row => row[key]).filter(Boolean))];
 
     const opcoesFiltro = {
         categoria: getOptionsFrom(allData, 'Tópico de ajuda'),
         departamento: getOptionsFrom(allData, 'De'),
         status: getOptionsFrom(allData, 'Status Atual'),
-        ano: getOptionsFrom(allData, 'ANO'),
+        // CORREÇÃO: Gera a lista de anos a partir dos dados de data de criação.
+        ano: [...new Set(allData.map(row => row.creationYear).filter(Boolean))].sort((a, b) => b - a),
     };
 
     // Resposta da API com os novos dados de despesa
