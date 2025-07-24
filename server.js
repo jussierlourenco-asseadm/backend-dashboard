@@ -26,33 +26,48 @@ async function getSheetData() {
     try {
         console.log("Buscando dados da planilha...");
         const sheets = google.sheets({ version: 'v4', auth });
-        const response = await sheets.spreadsheets.values.get({
+
+        // CORREÇÃO: Duas chamadas para obter o melhor de ambos os mundos.
+        // CHAMADA 1: Obtém os valores formatados (visíveis), ideal para textos, datas, e resultados de fórmulas como ANO() e MÊS().
+        const formattedResponse = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'BD_CHAM!A:AF',
+            valueRenderOption: 'FORMATTED_VALUE' 
+        });
+
+        // CHAMADA 2: Obtém os valores numéricos brutos, ideal para colunas de moeda/cálculo.
+        const unformattedResponse = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: 'BD_CHAM!A:AF',
             valueRenderOption: 'UNFORMATTED_VALUE'
         });
         
-        const rows = response.data.values;
-        if (!rows || rows.length < 2) return [];
+        const formattedRows = formattedResponse.data.values;
+        const unformattedRows = unformattedResponse.data.values;
 
-        const header = rows[0].map(h => h ? h.trim() : `UNKNOWN_COLUMN_${Math.random()}`);
+        if (!formattedRows || formattedRows.length < 2) return [];
+
+        const header = formattedRows[0].map(h => h ? h.trim() : `UNKNOWN_COLUMN_${Math.random()}`);
         
-        const data = rows.slice(1).map(row => {
+        const data = formattedRows.slice(1).map((formattedRow, index) => {
+            const unformattedRow = unformattedRows[index + 1] || [];
             let obj = {};
+            
             header.forEach((key, i) => {
-                obj[key] = row[i];
+                obj[key] = formattedRow[i];
             });
 
             // Mapeamento explícito para garantir consistência.
-            // A contagem de colunas começa em 0 (A=0, B=1, ..., AC=28, AD=29, AF=31)
-            obj['Número do Chamado'] = row[1]; // Coluna B
-            obj['De'] = row[4];               // Coluna E (Departamento)
-            obj['Tópico de ajuda'] = row[8];    // Coluna I (Serviço)
-            obj['Custo'] = row[31];           // Coluna AF (índice 31)
+            obj['Número do Chamado'] = formattedRow[1]; // Coluna B
+            obj['De'] = formattedRow[4];               // Coluna E (Departamento)
+            obj['Tópico de ajuda'] = formattedRow[8];    // Coluna I (Serviço)
             
-            // CORREÇÃO: Lendo diretamente das colunas AC (Mês) e AD (Ano).
-            obj['Mes'] = row[28];             // Coluna AC (índice 28)
-            obj['Ano'] = row[29];             // Coluna AD (índice 29)
+            // Usa o valor formatado (visível) para os filtros.
+            obj['Mes'] = formattedRow[28];             // Coluna AC (índice 28)
+            obj['Ano'] = formattedRow[29];             // Coluna AD (índice 29)
+
+            // Usa o valor numérico bruto (não formatado) para o cálculo de despesa.
+            obj['Custo'] = unformattedRow[31];         // Coluna AF (índice 31)
 
             return obj;
         });
@@ -80,8 +95,7 @@ function filterData(data, query) {
     if (departamento) filteredData = filteredData.filter(r => r['De'] === departamento);
     if (status) filteredData = filteredData.filter(r => r['Status Atual'] === status);
 
-    // CORREÇÃO: Lógica de filtro para ano e mês usando as colunas AC e AD.
-    // A comparação '==' funciona bem aqui, pois tanto o valor da planilha quanto o da query são tratados como texto/número.
+    // Agora o filtro de ano e mês funciona com os valores de texto visíveis na planilha.
     if (ano) {
         filteredData = filteredData.filter(r => r.Ano == ano);
     }
@@ -141,6 +155,7 @@ app.get('/api/dashboard-data', async (req, res) => {
     filteredData.forEach(row => {
         const departamento = row['De'];
         const servico = row['Tópico de ajuda'];
+        // O valor do custo agora é um número limpo, vindo da segunda chamada da API.
         const custo = parseFloat(row['Custo']) || 0;
 
         if (custo > 0) {
@@ -168,7 +183,6 @@ app.get('/api/dashboard-data', async (req, res) => {
         categoria: getOptionsFrom(allData, 'Tópico de ajuda'),
         departamento: getOptionsFrom(allData, 'De'),
         status: getOptionsFrom(allData, 'Status Atual'),
-        // CORREÇÃO: Gera a lista de anos a partir da coluna AD.
         ano: [...new Set(allData.map(row => row.Ano).filter(Boolean))].sort((a, b) => b - a),
     };
 
