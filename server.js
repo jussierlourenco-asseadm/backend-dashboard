@@ -28,7 +28,10 @@ async function getSheetData() {
         const sheets = google.sheets({ version: 'v4', auth });
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'BD_CHAM!A:AF', 
+            range: 'BD_CHAM!A:AF',
+            // ALTERAÇÃO 1: Adicionado para obter o valor numérico bruto das células,
+            // ignorando formatação de moeda e resultados de fórmula.
+            valueRenderOption: 'UNFORMATTED_VALUE'
         });
         
         const rows = response.data.values;
@@ -104,19 +107,17 @@ app.get('/api/dashboard-data', async (req, res) => {
     const porCategoria = groupBy('Tópico de ajuda', filteredData);
     const porSolicitante = groupBy('De', filteredData);
 
-    // --- Cálculo do Tempo Médio (inalterado) ---
+    // --- Cálculo do Tempo Médio ---
     const categoryData = {};
     filteredData.forEach(row => {
         const cat = row['Tópico de ajuda'];
         const nomeDaColunaDeTempo = 'Tempo de Conclusão'; 
-        const tempoStr = row[nomeDaColunaDeTempo]; 
-        if (cat && tempoStr) {
-            const tempo = parseFloat(String(tempoStr).replace(',', '.'));
-            if (!isNaN(tempo)) {
-                if (!categoryData[cat]) categoryData[cat] = { sum: 0, count: 0 };
-                categoryData[cat].sum += tempo;
-                categoryData[cat].count++;
-            }
+        // ALTERAÇÃO 2: Simplificada a conversão, pois o valor já vem como número.
+        const tempo = parseFloat(row[nomeDaColunaDeTempo]) || 0; 
+        if (cat && tempo > 0) {
+            if (!categoryData[cat]) categoryData[cat] = { sum: 0, count: 0 };
+            categoryData[cat].sum += tempo;
+            categoryData[cat].count++;
         }
     });
 
@@ -125,17 +126,16 @@ app.get('/api/dashboard-data', async (req, res) => {
         tempoMedio[cat] = parseFloat((categoryData[cat].sum / categoryData[cat].count).toFixed(2));
     }
 
-    // ALTERAÇÃO: Lógica de cálculo de despesas.
-    const despesasPorDepartamento = {}; // Renomeado
-    const despesasPorServico = {};      // Renomeado
+    // Lógica de cálculo de despesas.
+    const despesasPorDepartamento = {};
+    const despesasPorServico = {};
 
     filteredData.forEach(row => {
         const departamento = row['De'];
         const servico = row['Tópico de ajuda'];
         
-        const rawCusto = String(row['Custo'] || '0');
-        const cleanedCusto = rawCusto.replace(/[^0-9,.]/g, '');
-        const custo = parseFloat(cleanedCusto.replace(',', '.')) || 0;
+        // ALTERAÇÃO 3: Simplificada a conversão de custo, pois o valor já vem como número.
+        const custo = parseFloat(row['Custo']) || 0;
 
         if (custo > 0) {
             if (departamento) {
@@ -173,8 +173,8 @@ app.get('/api/dashboard-data', async (req, res) => {
             porCategoria, 
             porSolicitante, 
             tempoMedio,
-            despesasPorDepartamento, // Renomeado
-            despesasPorServico       // Renomeado
+            despesasPorDepartamento,
+            despesasPorServico
         },
         opcoesFiltro,
     });
