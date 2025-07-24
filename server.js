@@ -28,7 +28,8 @@ async function getSheetData() {
         const sheets = google.sheets({ version: 'v4', auth });
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'BD_CHAM!A:AD', 
+            // ALTERAÇÃO 1: O range foi expandido de A:AD para A:AF para incluir a coluna de custos.
+            range: 'BD_CHAM!A:AF', 
         });
         
         const rows = response.data.values;
@@ -42,16 +43,16 @@ async function getSheetData() {
                 obj[key] = row[i];
             });
 
-            // =======================================================================
-            // AJUSTE CRÍTICO: Lendo colunas por POSIÇÃO e não por NOME DO CABEÇALHO
-            // Isso garante que os filtros funcionem independentemente do texto do cabeçalho.
-            // Em programação, a contagem de colunas começa em 0 (A=0, B=1, etc.)
-            // =======================================================================
+            // Mapeamento explícito para garantir consistência, como no seu código original.
+            // A contagem de colunas começa em 0 (A=0, B=1, etc.)
             obj['Número do Chamado'] = row[1]; // Coluna B
-            obj['De'] = row[4];                // Coluna E (Departamento)
-            obj['Tópico de ajuda'] = row[8];   // Coluna I (Serviço)
-            obj['ANO'] = row[29];              // Coluna AD (Ano)
-            // obj['MES'] = row[XX];           // Se tiver uma coluna para MÊS, coloque o número dela aqui
+            obj['De'] = row[4];               // Coluna E (Departamento)
+            obj['Tópico de ajuda'] = row[8];    // Coluna I (Serviço)
+            obj['ANO'] = row[29];             // Coluna AD (Ano)
+            
+            // ALTERAÇÃO 2: Adicionada a leitura da coluna de Custo (AF).
+            // Coluna AF é a 32ª coluna, que corresponde ao índice 31.
+            obj['Custo'] = row[31];
 
             return obj;
         });
@@ -70,12 +71,11 @@ async function getSheetData() {
 }
 
 
-// Função auxiliar para filtrar dados
+// Função auxiliar para filtrar dados (permanece inalterada)
 function filterData(data, query) {
     let filteredData = [...data];
     const { categoria, departamento, status, ano, mes } = query;
     
-    // Os filtros agora usam os dados que garantimos que existem no objeto
     if (categoria) filteredData = filteredData.filter(r => r['Tópico de ajuda'] === categoria);
     if (departamento) filteredData = filteredData.filter(r => r['De'] === departamento);
     if (status) filteredData = filteredData.filter(r => r['Status Atual'] === status);
@@ -93,12 +93,12 @@ app.get('/api/dashboard-data', async (req, res) => {
     let allData = await getSheetData();
     let filteredData = filterData(allData, req.query);
 
-    // --- KPIs ---
+    // --- KPIs (inalterado) ---
     const totalChamados = filteredData.length;
     const aFazer = filteredData.filter(r => r['Status Atual']?.toUpperCase() === 'A FAZER').length;
     const concluidos = filteredData.filter(r => r['Status Atual']?.toUpperCase().startsWith('CONCLU')).length;
 
-    // --- Dados para Gráficos ---
+    // --- Dados para Gráficos (inalterado) ---
     const groupBy = (key, dataSet) => dataSet.reduce((acc, row) => {
         const group = row[key];
         if (group) acc[group] = (acc[group] || 0) + 1;
@@ -109,7 +109,7 @@ app.get('/api/dashboard-data', async (req, res) => {
     const porCategoria = groupBy('Tópico de ajuda', filteredData);
     const porSolicitante = groupBy('De', filteredData);
 
-    // --- Cálculo do Tempo Médio ---
+    // --- Cálculo do Tempo Médio (inalterado) ---
     const categoryData = {};
     filteredData.forEach(row => {
         const cat = row['Tópico de ajuda'];
@@ -129,8 +129,36 @@ app.get('/api/dashboard-data', async (req, res) => {
     for (const cat in categoryData) {
         tempoMedio[cat] = parseFloat((categoryData[cat].sum / categoryData[cat].count).toFixed(2));
     }
+
+    // ALTERAÇÃO 3: Adicionada a lógica para calcular os custos.
+    const custosPorDepartamento = {};
+    const custosPorServico = {};
+
+    filteredData.forEach(row => {
+        const departamento = row['De'];
+        const servico = row['Tópico de ajuda'];
+        // Lê o valor da coluna de custo, substitui vírgula por ponto e converte para número.
+        const custo = parseFloat(String(row['Custo']).replace(',', '.')) || 0;
+
+        if (custo > 0) {
+            if (departamento) {
+                custosPorDepartamento[departamento] = (custosPorDepartamento[departamento] || 0) + custo;
+            }
+            if (servico) {
+                custosPorServico[servico] = (custosPorServico[servico] || 0) + custo;
+            }
+        }
+    });
+
+    // Arredonda os valores finais para 2 casas decimais.
+    for (const key in custosPorDepartamento) {
+        custosPorDepartamento[key] = parseFloat(custosPorDepartamento[key].toFixed(2));
+    }
+    for (const key in custosPorServico) {
+        custosPorServico[key] = parseFloat(custosPorServico[key].toFixed(2));
+    }
     
-    // --- Opções de Filtro Dinâmicas ---
+    // --- Opções de Filtro Dinâmicas (inalterado) ---
     const getOptionsFrom = (dataSet, key) => [...new Set(dataSet.map(row => row[key]).filter(Boolean))];
 
     const opcoesFiltro = {
@@ -140,16 +168,24 @@ app.get('/api/dashboard-data', async (req, res) => {
         ano: getOptionsFrom(allData, 'ANO'),
     };
 
+    // ALTERAÇÃO 4: Adicionados os novos dados de custo ao objeto 'graficos'.
     res.json({
         kpis: { total: totalChamados, aFazer, concluidos },
-        graficos: { porStatus, porCategoria, porSolicitante, tempoMedio },
+        graficos: { 
+            porStatus, 
+            porCategoria, 
+            porSolicitante, 
+            tempoMedio,
+            custosPorDepartamento, // Novo
+            custosPorServico       // Novo
+        },
         opcoesFiltro,
     });
 });
 
 
 // =================================================================
-// ROTA PARA DADOS DETALHADOS (TABELA)
+// ROTA PARA DADOS DETALHADOS (TABELA) - (inalterado)
 // =================================================================
 app.get('/api/chamados', async (req, res) => {
     let allData = await getSheetData();
@@ -166,7 +202,7 @@ app.get('/api/chamados', async (req, res) => {
 
 
 // =================================================================
-// LIGANDO O SERVIDOR
+// LIGANDO O SERVIDOR - (inalterado)
 // =================================================================
 app.listen(PORT, () => {
     console.log(`✅ Servidor rodando na porta ${PORT}`);
