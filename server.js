@@ -1,444 +1,206 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Chamados</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background-color:#f0f2f5;color:#333;margin:0;padding:20px}h1{text-align:center;color:#1a1a1a}
-        
-        .dashboard{
-            max-width: 1800px; 
-            margin: 0 auto;   
-            display:flex;
-            flex-direction:column;
-            gap:20px
-        }
+const express = require('express');
+const cors = require('cors');
+const { google } = require('googleapis');
 
-        .filters{background-color:#fff;padding:15px 20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);display:flex;flex-wrap:wrap;gap:15px;align-items:center}.filters select,.filters button{padding:8px 12px;border:1px solid #ccc;border-radius:5px;background-color:#fff;font-size:14px}.filters button{background-color:#0d6efd;color:#fff;border-color:#0d6efd;cursor:pointer}.filters button:hover{background-color:#0b5ed7}.kpi-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}.kpi-card{background-color:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,.05);text-align:center}.kpi-card h3{margin:0 0 10px;font-size:16px;font-weight:500;color:#555}.kpi-card p{margin:0;font-size:36px;font-weight:700;color:#1a1a1a}
-        
-        .charts-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
+// =================================================================
+// CONFIGURAÇÕES
+// =================================================================
+const app = express();
+app.use(cors());
+const PORT = process.env.PORT || 3001;
+const SPREADSHEET_ID = '11uYaOh6jJDsyNm1OPKnC_MpMcA9FL2aXWKPjeMlkhW4';
 
-        @media (min-width: 900px) {
-            .charts-container {
-                grid-template-columns: repeat(2, 1fr); 
-            }
-        }
+const auth = new google.auth.GoogleAuth({
+  keyFile: 'credenciais.json',
+  scopes: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+});
 
-        .chart-card{
-            background-color:#fff;
-            padding:20px;
-            border-radius:8px;
-            box-shadow:0 2px 4px rgba(0,0,0,.05);
-            height: 450px; 
-        }
-        .chart-card h4{margin-top:0;text-align:center;font-weight:500}
+let cachedData = null;
 
-        /* ESTILO PARA O LOADING */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(240, 242, 245, 0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            font-size: 1.2em;
-            color: #333;
-            font-weight: 500;
-            backdrop-filter: blur(2px);
-        }
-
-        /* ESTILO PARA O RODAPÉ */
-        .dashboard-footer {
-            text-align: center;
-            padding: 20px 0;
-            margin-top: 30px;
-            color: #888;
-            font-size: 14px;
-            border-top: 1px solid #ddd;
-        }
-
-        /* ESTILOS PARA ABAS E TABELA */
-        .tabs {
-            background-color: #fff;
-            padding: 10px 20px 0 20px;
-            border-radius: 8px 8px 0 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,.05);
-            display: flex;
-            gap: 5px;
-            border-bottom: 2px solid #ddd;
-        }
-
-        .tab-button {
-            padding: 10px 20px;
-            cursor: pointer;
-            border: none;
-            background-color: transparent;
-            font-size: 16px;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
-        }
-
-        .tab-button.active {
-            border-bottom: 3px solid #0d6efd;
-            font-weight: 600;
-            color: #0d6efd;
-        }
-        
-        .tab-content {
-            display: none;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 0 0 8px 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,.05);
-        }
-
-        #tabela-chamados-container {
-            min-height: 600px;
-            overflow-y: auto;
-        }
-
-        #chamados-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        #chamados-table th, #chamados-table td {
-            text-align: left;
-            padding: 12px 15px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        #chamados-table thead th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-        }
-
-        #chamados-table tbody tr:hover {
-            background-color: #f1f1f1;
-        }
-        
-        .pagination-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0 10px 0;
-            font-size: 14px;
-            color: #555;
-            flex-wrap: wrap;
-        }
-
-        .pagination-buttons button {
-            padding: 8px 16px;
-            margin-left: 8px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            cursor: pointer;
-            background-color: #fff;
-        }
-
-        .pagination-buttons button:disabled {
-            color: #aaa;
-            cursor: not-allowed;
-            background-color: #f8f9fa;
-        }
-    </style>
-</head>
-<body>
-    <div id="loading-indicator" class="loading-overlay">
-        <div>Aguarde, carregando dados...</div>
-    </div>
-
-    <h1>Dashboard de Chamados</h1>
-
-    <div class="dashboard">
-        <div class="filters">
-            <select id="filter-categoria" title="Filtrar por Categoria"><option value="">Todos Serviços</option></select>
-            <select id="filter-departamento" title="Filtrar por Departamento"><option value="">Todos Departamentos</option></select>
-            <select id="filter-status" title="Filtrar por Status"><option value="">Todos Status</option></select>
-            <select id="filter-ano" title="Filtrar por Ano"><option value="">Todos Anos</option></select>
-            <select id="filter-mes" title="Filtrar por Mês">
-                <option value="">Todos Meses</option>
-                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-            </select>
-            <button id="apply-filters">Aplicar Filtros</button>
-        </div>
-
-        <div class="tabs">
-            <button class="tab-button active" onclick="openTab(event, 'visao-geral-content')">Visão Geral</button>
-            <button class="tab-button" onclick="openTab(event, 'tabela-content')">Tabela de Chamados</button>
-            <button class="tab-button" onclick="openTab(event, 'custos-content')">Custos</button>
-        </div>
-
-        <div id="visao-geral-content" class="tab-content" style="display: block;">
-            <div class="kpi-container">
-                <div class="kpi-card"><h3>TOTAL CHAMADOS</h3><p id="kpi-total-chamados">--</p></div>
-                <div class="kpi-card"><h3>A FAZER</h3><p id="kpi-a-fazer">--</p></div>
-                <div class="kpi-card"><h3>CONCLUÍDOS</h3><p id="kpi-concluidos">--</p></div>
-            </div>
-
-            <div class="charts-container" style="margin-top: 20px;">
-                <div class="chart-card"><h4>TEMPO MÉDIO DE CONCLUSÃO (por SERVIÇO)</h4><canvas id="chart-tempo-medio"></canvas></div>
-                <div class="chart-card"><h4>STATUS</h4><canvas id="chart-por-status"></canvas></div>
-                <div class="chart-card"><h4>SERVIÇOS</h4><canvas id="chart-por-categoria"></canvas></div>
-                <div class="chart-card"><h4>DEPARTAMENTO</h4><canvas id="chart-por-solicitante"></canvas></div>
-            </div>
-        </div>
-        
-        <div id="tabela-content" class="tab-content">
-            <h3>Lista Detalhada de Chamados</h3>
-            <div id="tabela-chamados-container">
-                <table id="chamados-table">
-                    <thead>
-                        <tr>
-                            <th>Número do Chamado</th>
-                            <th>Departamento</th>
-                            <th>Serviço</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-
-            <div class="pagination-controls">
-                <div id="pagination-info"></div>
-                <div class="pagination-buttons">
-                    <button id="prev-page" disabled>Anterior</button>
-                    <button id="next-page" disabled>Próximo</button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="custos-content" class="tab-content">
-            <div class="charts-container">
-                <div class="chart-card">
-                    <h4>CUSTOS POR DEPARTAMENTO</h4>
-                    <canvas id="chart-custos-departamento"></canvas>
-                </div>
-                <div class="chart-card">
-                    <h4>CUSTOS POR SERVIÇO</h4>
-                    <canvas id="chart-custos-servico"></canvas>
-                </div>
-            </div>
-        </div>
-
-    </div>
+async function getSheetData() {
+    if (cachedData) {
+        console.log("Usando dados do cache.");
+        return cachedData;
+    }
     
-    <footer class="dashboard-footer">
-        © Desenvolvido pela Assessoria de Administração do Centro de Biociências
-    </footer>
-
-    <script>
-        const API_BASE_URL = 'https://dashboard-chamados.onrender.com';
-        let activeCharts = {};
+    try {
+        console.log("Buscando dados da planilha...");
+        const sheets = google.sheets({ version: 'v4', auth });
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'BD_CHAM!A:AF', 
+        });
         
-        let allFilteredChamados = [];
-        let currentPage = 1;
-        const itemsPerPage = 20;
+        const rows = response.data.values;
+        if (!rows || rows.length < 2) return [];
 
-        function openTab(evt, tabName) {
-            let i, tabcontent, tablinks;
-            // Esconde todo o conteúdo
-            tabcontent = document.getElementsByClassName("tab-content");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
-            // Remove a classe 'active' de todos os botões
-            tablinks = document.getElementsByClassName("tab-button");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
-            // Mostra o conteúdo da aba clicada e adiciona a classe 'active' ao botão
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-
-        function drawChart(canvasId, type, labels, data, chartLabel, colorPalette) {
-            if (activeCharts[canvasId]) activeCharts[canvasId].destroy();
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            activeCharts[canvasId] = new Chart(ctx, {
-                type: type,
-                data: {
-                    labels: labels,
-                    datasets: [{ label: chartLabel, data: data, backgroundColor: colorPalette }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'x' }
+        const header = rows[0].map(h => h ? h.trim() : `UNKNOWN_COLUMN_${Math.random()}`);
+        
+        const data = rows.slice(1).map(row => {
+            let obj = {};
+            header.forEach((key, i) => {
+                obj[key] = row[i];
             });
-        }
 
-        function updateFilterOptions(options, currentSelections) {
-            const createOptions = (selectId, values, defaultOptionText) => {
-                const select = document.getElementById(selectId);
-                const currentValue = currentSelections[selectId];
-                select.innerHTML = `<option value="">${defaultOptionText}</option>`;
-                (values || []).sort().forEach(val => {
-                    const option = document.createElement('option');
-                    option.value = val;
-                    option.textContent = val;
-                    select.appendChild(option);
-                });
-                select.value = currentValue;
-            };
-            createOptions('filter-categoria', options.categoria, 'Todos Serviços');
-            createOptions('filter-departamento', options.departamento, 'Todos Departamentos');
-            createOptions('filter-status', options.status, 'Todos Status');
-            createOptions('filter-ano', options.ano, 'Todos Anos');
+            // Mapeamento explícito para garantir consistência.
+            obj['Número do Chamado'] = row[1]; // Coluna B
+            obj['De'] = row[4];               // Coluna E (Departamento)
+            obj['Tópico de ajuda'] = row[8];    // Coluna I (Serviço)
+            obj['ANO'] = row[29];             // Coluna AD (Ano)
+            obj['Custo'] = row[31];           // Coluna AF (índice 31)
+
+            return obj;
+        });
+
+        cachedData = data;
+        setTimeout(() => { 
+            console.log("Limpando cache de dados.");
+            cachedData = null; 
+        }, 300000); 
+
+        return data;
+    } catch (error) {
+        console.error("Erro fatal ao buscar dados da planilha:", error.message);
+        return []; 
+    }
+}
+
+
+// Função auxiliar para filtrar dados (permanece inalterada)
+function filterData(data, query) {
+    let filteredData = [...data];
+    const { categoria, departamento, status, ano, mes } = query;
+    
+    if (categoria) filteredData = filteredData.filter(r => r['Tópico de ajuda'] === categoria);
+    if (departamento) filteredData = filteredData.filter(r => r['De'] === departamento);
+    if (status) filteredData = filteredData.filter(r => r['Status Atual'] === status);
+    if (ano) filteredData = filteredData.filter(r => r['ANO'] == ano);
+    if (mes) filteredData = filteredData.filter(r => r['MES'] == mes);
+
+    return filteredData;
+}
+
+
+// =================================================================
+// ROTA PARA DADOS AGREGADOS (GRÁFICOS E KPIS)
+// =================================================================
+app.get('/api/dashboard-data', async (req, res) => {
+    let allData = await getSheetData();
+    let filteredData = filterData(allData, req.query);
+
+    // --- KPIs (inalterado) ---
+    const totalChamados = filteredData.length;
+    const aFazer = filteredData.filter(r => r['Status Atual']?.toUpperCase() === 'A FAZER').length;
+    const concluidos = filteredData.filter(r => r['Status Atual']?.toUpperCase().startsWith('CONCLU')).length;
+
+    // --- Dados para Gráficos (inalterado) ---
+    const groupBy = (key, dataSet) => dataSet.reduce((acc, row) => {
+        const group = row[key];
+        if (group) acc[group] = (acc[group] || 0) + 1;
+        return acc;
+    }, {});
+
+    const porStatus = groupBy('Status Atual', filteredData);
+    const porCategoria = groupBy('Tópico de ajuda', filteredData);
+    const porSolicitante = groupBy('De', filteredData);
+
+    // --- Cálculo do Tempo Médio (inalterado) ---
+    const categoryData = {};
+    filteredData.forEach(row => {
+        const cat = row['Tópico de ajuda'];
+        const nomeDaColunaDeTempo = 'Tempo de Conclusão'; 
+        const tempoStr = row[nomeDaColunaDeTempo]; 
+        if (cat && tempoStr) {
+            const tempo = parseFloat(String(tempoStr).replace(',', '.'));
+            if (!isNaN(tempo)) {
+                if (!categoryData[cat]) categoryData[cat] = { sum: 0, count: 0 };
+                categoryData[cat].sum += tempo;
+                categoryData[cat].count++;
+            }
         }
+    });
+
+    const tempoMedio = {};
+    for (const cat in categoryData) {
+        tempoMedio[cat] = parseFloat((categoryData[cat].sum / categoryData[cat].count).toFixed(2));
+    }
+
+    // ALTERAÇÃO: Lógica de cálculo de despesas.
+    const despesasPorDepartamento = {}; // Renomeado
+    const despesasPorServico = {};      // Renomeado
+
+    filteredData.forEach(row => {
+        const departamento = row['De'];
+        const servico = row['Tópico de ajuda'];
         
-        function popularTabelaChamados() {
-            const tabelaBody = document.querySelector('#chamados-table tbody');
-            tabelaBody.innerHTML = ''; 
+        const rawCusto = String(row['Custo'] || '0');
+        const cleanedCusto = rawCusto.replace(/[^0-9,.]/g, '');
+        const custo = parseFloat(cleanedCusto.replace(',', '.')) || 0;
 
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            const pageItems = allFilteredChamados.slice(startIndex, endIndex);
-
-            if (pageItems.length === 0) {
-                tabelaBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhum chamado encontrado.</td></tr>';
-            } else {
-                pageItems.forEach(chamado => {
-                    const row = document.createElement('tr');
-                    const numeroChamado = chamado.Numero || '--';
-                    const departamento = chamado.Departamento || '--';
-                    const servico = chamado.Serviço || '--';
-                    row.innerHTML = `<td>${numeroChamado}</td><td>${departamento}</td><td>${servico}</td>`;
-                    tabelaBody.appendChild(row);
-                });
+        if (custo > 0) {
+            if (departamento) {
+                despesasPorDepartamento[departamento] = (despesasPorDepartamento[departamento] || 0) + custo;
             }
-            updatePaginationControls();
-        }
-
-        function updatePaginationControls() {
-            const totalItems = allFilteredChamados.length;
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
-            
-            const paginationInfo = document.getElementById('pagination-info');
-            const prevButton = document.getElementById('prev-page');
-            const nextButton = document.getElementById('next-page');
-
-            if (totalItems === 0) {
-                paginationInfo.textContent = '';
-                prevButton.style.display = 'none';
-                nextButton.style.display = 'none';
-                return;
-            }
-            
-            prevButton.style.display = 'inline-block';
-            nextButton.style.display = 'inline-block';
-
-            const startItem = (currentPage - 1) * itemsPerPage + 1;
-            const endItem = Math.min(startItem + itemsPerPage - 1, totalItems);
-            
-            paginationInfo.textContent = `Mostrando ${startItem} - ${endItem} de ${totalItems} chamados`;
-            
-            prevButton.disabled = currentPage === 1;
-            nextButton.disabled = currentPage === totalPages || totalPages === 0;
-        }
-        
-        async function refreshDashboard(queryParams = '') {
-            const loadingIndicator = document.getElementById('loading-indicator');
-            loadingIndicator.style.display = 'flex';
-
-            console.log(`Buscando dados com os filtros: ${queryParams}`);
-            try {
-                // Fetch para os dados agregados (KPIs e Gráficos)
-                const responseDashboard = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
-                const dataDashboard = await responseDashboard.json();
-
-                document.getElementById('kpi-total-chamados').textContent = dataDashboard.kpis.total;
-                document.getElementById('kpi-a-fazer').textContent = dataDashboard.kpis.aFazer;
-                document.getElementById('kpi-concluidos').textContent = dataDashboard.kpis.concluidos;
-                
-                const currentSelections = {
-                    'filter-categoria': document.getElementById('filter-categoria').value,
-                    'filter-departamento': document.getElementById('filter-departamento').value,
-                    'filter-status': document.getElementById('filter-status').value,
-                    'filter-ano': document.getElementById('filter-ano').value,
-                };
-                updateFilterOptions(dataDashboard.opcoesFiltro, currentSelections);
-
-                const statusColors = '#c6cca5', categoriaColors = '#4a756f', solicitanteColors = '#9e906e', tempoMedioColors = '#006738';
-                
-                // NOVO: Cores para os gráficos de custo
-                const custoDeptColors = '#d98a26';
-                const custoServicoColors = '#a5678e';
-
-                // Desenha os gráficos originais
-                drawChart('chart-por-status', 'bar', Object.keys(dataDashboard.graficos.porStatus), Object.values(dataDashboard.graficos.porStatus), 'Chamados', statusColors);
-                drawChart('chart-por-categoria', 'bar', Object.keys(dataDashboard.graficos.porCategoria), Object.values(dataDashboard.graficos.porCategoria), 'Chamados', categoriaColors);
-                drawChart('chart-por-solicitante', 'bar', Object.keys(dataDashboard.graficos.porSolicitante), Object.values(dataDashboard.graficos.porSolicitante), 'Chamados', solicitanteColors);
-                drawChart('chart-tempo-medio', 'bar', Object.keys(dataDashboard.graficos.tempoMedio), Object.values(dataDashboard.graficos.tempoMedio), 'Dias', tempoMedioColors);
-                
-                // NOVO: Desenha os gráficos de custo
-                if (dataDashboard.graficos.custosPorDepartamento && dataDashboard.graficos.custosPorServico) {
-                    drawChart('chart-custos-departamento', 'bar', Object.keys(dataDashboard.graficos.custosPorDepartamento), Object.values(dataDashboard.graficos.custosPorDepartamento), 'Custo (R$)', custoDeptColors);
-                    drawChart('chart-custos-servico', 'bar', Object.keys(dataDashboard.graficos.custosPorServico), Object.values(dataDashboard.graficos.custosPorServico), 'Custo (R$)', custoServicoColors);
-                }
-                
-                // Fetch para os dados da tabela
-                const responseTabela = await fetch(`${API_BASE_URL}/api/chamados${queryParams}`);
-                allFilteredChamados = await responseTabela.json();
-                currentPage = 1;
-                popularTabelaChamados();
-
-            } catch (error) {
-                console.error("Erro ao carregar dados do dashboard:", error);
-                loadingIndicator.innerHTML = '<div>Falha ao carregar dados. Tente novamente mais tarde.</div>';
-            } finally {
-                if(loadingIndicator.innerHTML.includes('Aguarde')) {
-                    loadingIndicator.style.display = 'none';
-                }
+            if (servico) {
+                despesasPorServico[servico] = (despesasPorServico[servico] || 0) + custo;
             }
         }
+    });
 
-        document.getElementById('apply-filters').addEventListener('click', () => {
-            const params = new URLSearchParams();
-            const addParam = (id, name) => {
-                const value = document.getElementById(id).value;
-                if (value) params.append(name, value);
-            };
-            addParam('filter-categoria', 'categoria');
-            addParam('filter-departamento', 'departamento');
-            addParam('filter-status', 'status');
-            addParam('filter-ano', 'ano');
-            addParam('filter-mes', 'mes');
-            refreshDashboard(`?${params.toString()}`);
-        });
+    // Arredonda os valores finais para 2 casas decimais.
+    for (const key in despesasPorDepartamento) {
+        despesasPorDepartamento[key] = parseFloat(despesasPorDepartamento[key].toFixed(2));
+    }
+    for (const key in despesasPorServico) {
+        despesasPorServico[key] = parseFloat(despesasPorServico[key].toFixed(2));
+    }
+    
+    // --- Opções de Filtro Dinâmicas (inalterado) ---
+    const getOptionsFrom = (dataSet, key) => [...new Set(dataSet.map(row => row[key]).filter(Boolean))];
 
-        document.getElementById('next-page').addEventListener('click', () => {
-            const totalPages = Math.ceil(allFilteredChamados.length / itemsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                popularTabelaChamados();
-            }
-        });
+    const opcoesFiltro = {
+        categoria: getOptionsFrom(allData, 'Tópico de ajuda'),
+        departamento: getOptionsFrom(allData, 'De'),
+        status: getOptionsFrom(allData, 'Status Atual'),
+        ano: getOptionsFrom(allData, 'ANO'),
+    };
 
-        document.getElementById('prev-page').addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                popularTabelaChamados();
-            }
-        });
+    // Resposta da API com os novos dados de despesa
+    res.json({
+        kpis: { total: totalChamados, aFazer, concluidos },
+        graficos: { 
+            porStatus, 
+            porCategoria, 
+            porSolicitante, 
+            tempoMedio,
+            despesasPorDepartamento, // Renomeado
+            despesasPorServico       // Renomeado
+        },
+        opcoesFiltro,
+    });
+});
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // Renomeia o ID do conteúdo principal para corresponder ao novo `onclick`
-            const oldContent = document.getElementById('dashboard-content');
-            if(oldContent) oldContent.id = 'visao-geral-content';
-            
-            refreshDashboard();
-        });
-    </script>
-</body>
-</html>
+
+// =================================================================
+// ROTA PARA DADOS DETALHADOS (TABELA) - (inalterado)
+// =================================================================
+app.get('/api/chamados', async (req, res) => {
+    let allData = await getSheetData();
+    let filteredData = filterData(allData, req.query);
+
+    const tableData = filteredData.map(row => ({
+        Numero: row['Número do Chamado'],
+        Departamento: row['De'],
+        Serviço: row['Tópico de ajuda'] 
+    }));
+    
+    res.json(tableData);
+});
+
+
+// =================================================================
+// LIGANDO O SERVIDOR - (inalterado)
+// =================================================================
+app.listen(PORT, () => {
+    console.log(`✅ Servidor rodando na porta ${PORT}`);
+});
