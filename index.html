@@ -179,7 +179,7 @@
         <div class="tabs">
             <button class="tab-button active" onclick="openTab(event, 'visao-geral-content')">Visão Geral</button>
             <button class="tab-button" onclick="openTab(event, 'tabela-content')">Tabela de Chamados</button>
-            <button class="tab-button" onclick="openTab(event, 'custos-content')">Custos</button>
+            <button class="tab-button" onclick="openTab(event, 'despesas-content')">Despesas</button>
         </div>
 
         <div id="visao-geral-content" class="tab-content" style="display: block;">
@@ -221,15 +221,15 @@
             </div>
         </div>
         
-        <div id="custos-content" class="tab-content">
+        <div id="despesas-content" class="tab-content">
             <div class="charts-container">
                 <div class="chart-card">
-                    <h4>CUSTOS POR DEPARTAMENTO</h4>
-                    <canvas id="chart-custos-departamento"></canvas>
+                    <h4>DESPESAS POR DEPARTAMENTO</h4>
+                    <canvas id="chart-despesas-departamento"></canvas>
                 </div>
                 <div class="chart-card">
-                    <h4>CUSTOS POR SERVIÇO</h4>
-                    <canvas id="chart-custos-servico"></canvas>
+                    <h4>DESPESAS POR SERVIÇO</h4>
+                    <canvas id="chart-despesas-servico"></canvas>
                 </div>
             </div>
         </div>
@@ -250,17 +250,14 @@
 
         function openTab(evt, tabName) {
             let i, tabcontent, tablinks;
-            // Esconde todo o conteúdo
             tabcontent = document.getElementsByClassName("tab-content");
             for (i = 0; i < tabcontent.length; i++) {
                 tabcontent[i].style.display = "none";
             }
-            // Remove a classe 'active' de todos os botões
             tablinks = document.getElementsByClassName("tab-button");
             for (i = 0; i < tablinks.length; i++) {
                 tablinks[i].className = tablinks[i].className.replace(" active", "");
             }
-            // Mostra o conteúdo da aba clicada e adiciona a classe 'active' ao botão
             document.getElementById(tabName).style.display = "block";
             evt.currentTarget.className += " active";
         }
@@ -353,7 +350,6 @@
 
             console.log(`Buscando dados com os filtros: ${queryParams}`);
             try {
-                // Fetch para os dados agregados (KPIs e Gráficos)
                 const responseDashboard = await fetch(`${API_BASE_URL}/api/dashboard-data${queryParams}`);
                 const dataDashboard = await responseDashboard.json();
 
@@ -370,10 +366,8 @@
                 updateFilterOptions(dataDashboard.opcoesFiltro, currentSelections);
 
                 const statusColors = '#c6cca5', categoriaColors = '#4a756f', solicitanteColors = '#9e906e', tempoMedioColors = '#006738';
-                
-                // NOVO: Cores para os gráficos de custo
-                const custoDeptColors = '#d98a26';
-                const custoServicoColors = '#a5678e';
+                const despesaDeptColors = '#d98a26';
+                const despesaServicoColors = '#a5678e';
 
                 // Desenha os gráficos originais
                 drawChart('chart-por-status', 'bar', Object.keys(dataDashboard.graficos.porStatus), Object.values(dataDashboard.graficos.porStatus), 'Chamados', statusColors);
@@ -381,13 +375,12 @@
                 drawChart('chart-por-solicitante', 'bar', Object.keys(dataDashboard.graficos.porSolicitante), Object.values(dataDashboard.graficos.porSolicitante), 'Chamados', solicitanteColors);
                 drawChart('chart-tempo-medio', 'bar', Object.keys(dataDashboard.graficos.tempoMedio), Object.values(dataDashboard.graficos.tempoMedio), 'Dias', tempoMedioColors);
                 
-                // NOVO: Desenha os gráficos de custo
-                if (dataDashboard.graficos.custosPorDepartamento && dataDashboard.graficos.custosPorServico) {
-                    drawChart('chart-custos-departamento', 'bar', Object.keys(dataDashboard.graficos.custosPorDepartamento), Object.values(dataDashboard.graficos.custosPorDepartamento), 'Custo (R$)', custoDeptColors);
-                    drawChart('chart-custos-servico', 'bar', Object.keys(dataDashboard.graficos.custosPorServico), Object.values(dataDashboard.graficos.custosPorServico), 'Custo (R$)', custoServicoColors);
+                // Desenha os gráficos de despesa
+                if (dataDashboard.graficos.despesasPorDepartamento && dataDashboard.graficos.despesasPorServico) {
+                    drawChart('chart-despesas-departamento', 'bar', Object.keys(dataDashboard.graficos.despesasPorDepartamento), Object.values(dataDashboard.graficos.despesasPorDepartamento), 'Despesa (R$)', despesaDeptColors);
+                    drawChart('chart-despesas-servico', 'bar', Object.keys(dataDashboard.graficos.despesasPorServico), Object.values(dataDashboard.graficos.despesasPorServico), 'Despesa (R$)', despesaServicoColors);
                 }
                 
-                // Fetch para os dados da tabela
                 const responseTabela = await fetch(`${API_BASE_URL}/api/chamados${queryParams}`);
                 allFilteredChamados = await responseTabela.json();
                 currentPage = 1;
@@ -433,7 +426,6 @@
         });
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Renomeia o ID do conteúdo principal para corresponder ao novo `onclick`
             const oldContent = document.getElementById('dashboard-content');
             if(oldContent) oldContent.id = 'visao-geral-content';
             
