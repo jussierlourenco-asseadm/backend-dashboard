@@ -44,23 +44,15 @@ async function getSheetData() {
             });
 
             // Mapeamento explícito para garantir consistência.
+            // A contagem de colunas começa em 0 (A=0, B=1, ..., AC=28, AD=29, AF=31)
             obj['Número do Chamado'] = row[1]; // Coluna B
             obj['De'] = row[4];               // Coluna E (Departamento)
             obj['Tópico de ajuda'] = row[8];    // Coluna I (Serviço)
             obj['Custo'] = row[31];           // Coluna AF (índice 31)
-
-            // CORREÇÃO: Derivar ano e mês da data de criação para um filtro confiável.
-            // Isso ignora a coluna 'ANO' e usa a data real do chamado.
-            // Assumindo que o nome da coluna de data é 'Data de criação'.
-            const creationDateSerial = obj['Data de criação'];
-            if (typeof creationDateSerial === 'number' && creationDateSerial > 0) {
-                // Converte o número de série de data do Google Sheets para um objeto Date do JavaScript.
-                const creationDate = new Date(1899, 11, 30 + creationDateSerial);
-                if (!isNaN(creationDate.getTime())) {
-                    obj.creationYear = creationDate.getFullYear();
-                    obj.creationMonth = creationDate.getMonth() + 1; // getMonth() é 0-indexed (Jan=0), então somamos 1.
-                }
-            }
+            
+            // CORREÇÃO: Lendo diretamente das colunas AC (Mês) e AD (Ano).
+            obj['Mes'] = row[28];             // Coluna AC (índice 28)
+            obj['Ano'] = row[29];             // Coluna AD (índice 29)
 
             return obj;
         });
@@ -88,14 +80,13 @@ function filterData(data, query) {
     if (departamento) filteredData = filteredData.filter(r => r['De'] === departamento);
     if (status) filteredData = filteredData.filter(r => r['Status Atual'] === status);
 
-    // CORREÇÃO: Lógica de filtro para ano e mês usando os novos campos derivados.
+    // CORREÇÃO: Lógica de filtro para ano e mês usando as colunas AC e AD.
+    // A comparação '==' funciona bem aqui, pois tanto o valor da planilha quanto o da query são tratados como texto/número.
     if (ano) {
-        const yearNum = parseInt(ano, 10);
-        filteredData = filteredData.filter(r => r.creationYear === yearNum);
+        filteredData = filteredData.filter(r => r.Ano == ano);
     }
     if (mes) {
-        const monthNum = parseInt(mes, 10);
-        filteredData = filteredData.filter(r => r.creationMonth === monthNum);
+        filteredData = filteredData.filter(r => r.Mes == mes);
     }
 
     return filteredData;
@@ -177,8 +168,8 @@ app.get('/api/dashboard-data', async (req, res) => {
         categoria: getOptionsFrom(allData, 'Tópico de ajuda'),
         departamento: getOptionsFrom(allData, 'De'),
         status: getOptionsFrom(allData, 'Status Atual'),
-        // CORREÇÃO: Gera a lista de anos a partir dos dados de data de criação.
-        ano: [...new Set(allData.map(row => row.creationYear).filter(Boolean))].sort((a, b) => b - a),
+        // CORREÇÃO: Gera a lista de anos a partir da coluna AD.
+        ano: [...new Set(allData.map(row => row.Ano).filter(Boolean))].sort((a, b) => b - a),
     };
 
     // Resposta da API com os novos dados de despesa
