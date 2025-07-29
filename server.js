@@ -114,12 +114,12 @@ app.get('/api/dashboard-data', async (req, res) => {
     let allData = await getSheetData();
     let filteredData = filterData(allData, req.query);
 
-    // --- KPIs (inalterado) ---
+    // --- KPIs ---
     const totalChamados = filteredData.length;
     const aFazer = filteredData.filter(r => r['Status Atual']?.toUpperCase() === 'A FAZER').length;
     const concluidos = filteredData.filter(r => r['Status Atual']?.toUpperCase().startsWith('CONCLU')).length;
 
-    // --- Dados para Gráficos (inalterado) ---
+    // --- Dados para Gráficos ---
     const groupBy = (key, dataSet) => dataSet.reduce((acc, row) => {
         const group = row[key];
         if (group) acc[group] = (acc[group] || 0) + 1;
@@ -148,14 +148,14 @@ app.get('/api/dashboard-data', async (req, res) => {
         tempoMedio[cat] = parseFloat((categoryData[cat].sum / categoryData[cat].count).toFixed(2));
     }
 
-    // Lógica de cálculo de despesas.
+    // --- Lógica de cálculo de despesas ---
     const despesasPorDepartamento = {};
     const despesasPorServico = {};
+    let totalDespesas = 0; // <<<<<<<<<<<<<<<<<<<< ADICIONADO AQUI
 
     filteredData.forEach(row => {
         const departamento = row['De'];
         const servico = row['Tópico de ajuda'];
-        // O valor do custo agora é um número limpo, vindo da segunda chamada da API.
         const custo = parseFloat(row['Custo']) || 0;
 
         if (custo > 0) {
@@ -165,6 +165,7 @@ app.get('/api/dashboard-data', async (req, res) => {
             if (servico) {
                 despesasPorServico[servico] = (despesasPorServico[servico] || 0) + custo;
             }
+            totalDespesas += custo; // <<<<<<<<<<<<<<<<<<<< ADICIONADO AQUI
         }
     });
 
@@ -188,7 +189,12 @@ app.get('/api/dashboard-data', async (req, res) => {
 
     // Resposta da API com os novos dados de despesa
     res.json({
-        kpis: { total: totalChamados, aFazer, concluidos },
+        kpis: { 
+            total: totalChamados, 
+            aFazer, 
+            concluidos,
+            totalDespesas: parseFloat(totalDespesas.toFixed(2)) // <<<<<<<<<<<< ADICIONADO AQUI
+        },
         graficos: { 
             porStatus, 
             porCategoria, 
