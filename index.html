@@ -222,6 +222,12 @@
         </div>
         
         <div id="despesas-content" class="tab-content">
+            <div class="kpi-container" style="margin-bottom: 20px;">
+                <div class="kpi-card">
+                    <h3>VALOR TOTAL DOS SERVIÇOS</h3>
+                    <p id="kpi-total-despesas">R$ --</p>
+                </div>
+            </div>
             <div class="charts-container">
                 <div class="chart-card">
                     <h4>DESPESAS POR DEPARTAMENTO</h4>
@@ -247,6 +253,17 @@
         let allFilteredChamados = [];
         let currentPage = 1;
         const itemsPerPage = 20;
+
+        // >>>>>>>>>>>>>>>>> FUNÇÃO ADICIONADA PARA FORMATAR MOEDA <<<<<<<<<<<<<<<<<
+        function formatCurrency(value) {
+            if (typeof value !== 'number') {
+                value = 0;
+            }
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(value);
+        }
 
         function openTab(evt, tabName) {
             let i, tabcontent, tablinks;
@@ -357,6 +374,9 @@
                 document.getElementById('kpi-a-fazer').textContent = dataDashboard.kpis.aFazer;
                 document.getElementById('kpi-concluidos').textContent = dataDashboard.kpis.concluidos;
                 
+                // >>>>>>>>>>>>>>>>> LINHA ADICIONADA PARA ATUALIZAR O TOTAL DE DESPESAS <<<<<<<<<<<<<<<<<
+                document.getElementById('kpi-total-despesas').textContent = formatCurrency(dataDashboard.kpis.totalDespesas);
+
                 const currentSelections = {
                     'filter-categoria': document.getElementById('filter-categoria').value,
                     'filter-departamento': document.getElementById('filter-departamento').value,
