@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "Chamado": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chamado",
+      "type": "object",
+      "description": "Represents a single support ticket (chamado) from the Google Sheet data.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Chamado entity.  This corresponds to the 'Número do Chamado' column in the Google Sheet."
+        },
+        "servico": {
+          "type": "string",
+          "description": "The service associated with the ticket."
+        },
+        "departamento": {
+          "type": "string",
+          "description": "The department associated with the ticket."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the ticket (e.g., 'A Fazer', 'Concluído')."
+        },
+        "ano": {
+          "type": "number",
+          "description": "The year the ticket was created."
+        },
+        "mes": {
+          "type": "string",
+          "description": "The month the ticket was created."
+        },
+        "valorTotalServicos": {
+          "type": "number",
+          "description": "The total value of the services for this ticket."
+        },
+        "tempoMedioConclusao": {
+          "type": "number",
+          "description": "The average time to complete the service (in days)."
+        },
+        "dataAbertura": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "dataConclusao": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "custo": {
+            "type": "number"
+        },
+        "lastUpdatedBy": {
+            "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/chamados/{chamadoId}",
+        "definition": {
+          "entityName": "Chamado",
+          "schema": {
+            "$ref": "#/backend/entities/Chamado"
+          },
+          "description": "Stores individual 'Chamado' (support ticket) documents, where each document's ID is the 'Número do Chamado' from the Google Sheet. Includes all ticket details. The `chamadoId` corresponds to the 'Número do Chamado' field in the Google Sheet.",
+          "params": [
+            {
+              "name": "chamadoId",
+              "description": "The unique identifier for the 'Chamado' document, corresponding to the 'Número do Chamado'."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to optimize data synchronization from Google Sheets, facilitate efficient filtering, and support the visualization requirements for the dashboard. The central collection is `chamados`, which stores all ticket data. Each document's ID is the 'Número do Chamado', ensuring uniqueness and efficient lookups. This approach avoids the need for complex queries or collection group queries.  The `chamados` collection uses a flat structure and contains all information required to generate the required dashboards. This design achieves Authorization Independence because there are no subcollections or nested data structures.  All data required for a Chamado is contained in that document.  QAPs are supported by structuring all Chamados into a single collection and filtering based on the attributes in the document. The dashboard will handle filtering of the main `chamados` collection based on the user-selected criteria (e.g., service, department, status, year, month).  Data denormalization is not required in this specific case because there are no parent-child relationships or nested data structures within the Chamados. The structure allows efficient filtering of the `chamados` documents based on these fields."
+  }
+}

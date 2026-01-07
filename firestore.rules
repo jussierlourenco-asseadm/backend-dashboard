@@ -1,0 +1,50 @@
+/**
+ * @file Overview
+ * This ruleset secures the `chamados` collection in Firestore, implementing a public read with owner-only writes access control pattern.
+ * @core-philosophy Allows open data reads, but strictly controls data creation, updates, and deletions based on document ownership.
+ * @data-structure Data is stored in a flat structure under the `/chamados/{chamadoId}` collection. Each document represents a support ticket.
+ * @key-security-decisions
+ *   - Public read access to the `chamados` collection for open data consumption.
+ *   - Strict owner-only access for `create`, `update`, and `delete` operations.
+ *   - The `id` field within each `chamados` document is considered the ownership field. This field MUST match `chamadoId` in the path.
+ * @denormalization-for-authorization Not applicable, there are no other collections.
+ * @structural-segregation Not applicable, there are no other collections.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Secures the `chamados` collection, providing public read access but restricting writes to the owner.
+     * @path /chamados/{chamadoId}
+     * @allow (get, list) Anyone can read all tickets.
+     * @allow (create) Only the user whose ID matches the `id` field can create a ticket.
+     * @allow (update, delete) Only the user whose ID matches the existing `id` field can update or delete a ticket.
+     * @deny (create) A user attempts to create a ticket where the `id` field does not match the `chamadoId` in the path.
+     * @deny (update, delete) A user attempts to update or delete a ticket they do not own.
+     * @principle Enforces document ownership for writes, allowing public reads.
+     */
+    match /chamados/{chamadoId} {
+      // Anyone can read all tickets.
+      allow get, list: if true;
+
+      // Only the user whose ID matches the `id` field can create a ticket.
+      allow create: if isSignedIn() && request.resource.data.id == chamadoId;
+
+      // Only the user whose ID matches the existing `id` field can update or delete a ticket.
+      allow update, delete: if isSignedIn() && isExistingOwner(chamadoId);
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(chamadoId) {
+      return request.auth.uid == chamadoId;
+    }
+
+    function isExistingOwner(chamadoId) {
+      return isOwner(chamadoId) && resource != null;
+    }
+  }
+}

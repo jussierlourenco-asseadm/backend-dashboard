@@ -1,0 +1,34 @@
+{
+    "numero": {
+      "label": "Número do Chamado",
+      "programmaticIndex": 1
+    },
+    "departamento": {
+      "label": "Departamento",
+      "programmaticIndex": 4
+    },
+    "servico": {
+      "label": "Serviço",
+      "programmaticIndex": 8
+    },
+    "status": {
+      "label": "Status",
+      "programmaticIndex": 10
+    },
+    "dataAbertura": {
+      "label": "Data de Abertura",
+      "programmaticIndex": 2,
+      "type": "date"
+    },
+    "dataConclusao": {
+      "label": "Data de Conclusão",
+      "programmaticIndex": 15,
+      "type": "date"
+    },
+    "custo": {
+      "label": "Custo",
+      "programmaticIndex": 31,
+      "type": "number"
+    }
+  }
+  
